@@ -146,26 +146,36 @@ void BCode_d::Clear()
 
 bool BCode_d::Contain(const std::string& k)const
 {
-	return GetValue(k) != NULL;
+	return GetValue(k) != nullptr;
 }
 
 bool BCode_d::Contain(const std::string& k, BCode::type type)const 
 {
-	auto p = GetValue(k);
-	if (p)
-	{
-		return p->GetType() == type;
-	}
-
-	return false;
+	return GetValue(k, type) != nullptr;
 }
 
 const BCode* BCode_d::GetValue(const std::string& k)const
 {
 	auto iter = m_dic.find(k);
 	if (iter == m_dic.end())
-		return NULL;
+	{
+		return nullptr;
+	}
+
 	return iter->second;
+}
+
+const BCode* BCode_d::GetValue(const std::string& k, BCode::type t) const
+{
+	auto p = GetValue(k);
+	if (p && p->GetType() == t)
+	{
+		return p;
+	}
+	else
+	{
+		return nullptr;
+	}
 }
 
 void BCode_d::CreateInfoHash(const std::string&, const char*, int)
@@ -185,7 +195,7 @@ int BCode_d::Parse(const char*s, size_t  size)
 	int tempsize = size - 1;
 	auto pTemp = s + 1;
 	BCode_s* pItemKey(NULL);
-	BCode  *pItemValue(NULL);
+	BCode  * pItemValue(NULL);
 	int itemkey_size(0), itemvalue_size(0);
 	while (true)
 	{

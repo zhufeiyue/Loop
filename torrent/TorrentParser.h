@@ -3,6 +3,7 @@
 #include <iostream>
 #include <sstream>
 #include "BCode.h"
+#include "common/log.h"
 
 //https://libtorrent.org/udp_tracker_protocol.html
 //https://wiki.theory.org/index.php/BitTorrentSpecification
@@ -21,8 +22,9 @@ class TorrentParser
 public:
 	struct DownloadFileInfo
 	{
-		int64_t size;
+		int64_t size = 0;
 		std::string path;
+		std::string md5;
 	};
 
 	int ParseFromFile(std::string);
@@ -32,7 +34,7 @@ public:
 	std::string GetInfoHash() const;
 	std::vector<std::string> GetTrackerURLs() const;
 	std::vector<DownloadFileInfo> GetFileInfo() const;
-	int64_t GetFileSize() const;
+	int64_t GetTotalSize() const;
 	int32_t GetPieceSize() const;
 	int32_t GetPieceNumber() const;
 
@@ -47,5 +49,4 @@ public:
 
 protected:
 	TorrentParser m_torrentFileParser;
-	std::vector<std::string> m_vTrackers;
 };

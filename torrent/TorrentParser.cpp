@@ -87,43 +87,63 @@ const BCodeInfoHash& TorrentParser::GetDictionary()const
 std::string TorrentParser::GetInfoHash()const
 {
 	if (m_bcode.m_bInfoHash)
+	{
 		return std::string((char*)m_bcode.m_infoHash, 20);
+	}
 	else
+	{
 		return "";
+	}
 }
 
 std::vector<std::string> TorrentParser::GetTrackerURLs() const
 {
 	std::vector<std::string> urls;
 	auto & dic = GetDictionary();
-	auto announce = dic.GetValue("announce");
-	if (announce && announce->GetType() == BCode::string)
+	auto announce = static_cast<const BCode_s*>(dic.GetValue("announce", BCode::string));
+	if (announce)
 	{
-		urls.push_back(static_cast<const BCode_s*>(announce)->m_str);
+		urls.push_back(announce->m_str);
 	}
 
-	if (dic.Contain("announce-list"))
+	auto announce_list = static_cast<const BCode_l*>(dic.GetValue("announce-list", BCode::list));
+	if (announce_list)
 	{
-		auto announce_list = static_cast<const BCode_l*>(dic.GetValue("announce-list"));
-		if (announce_list)
-			for (auto iter = announce_list->m_list.begin(); iter != announce_list->m_list.end(); ++iter)
+		for (auto iter = announce_list->m_list.begin(); iter != announce_list->m_list.end(); ++iter)
+		{
+			auto item = static_cast<const BCode_l*>(*iter);
+			if (item && item->m_list.size() > 0 && item->m_list[0]->GetType() == BCode::string)
 			{
-				auto item = static_cast<const BCode_l*>(*iter);
-				if (item && item->m_list.size() > 0 && item->m_list[0]->GetType() == BCode::string)
-				{
-					urls.push_back(static_cast<const BCode_s*>(item->m_list[0])->m_str);
-				}
+				urls.push_back(static_cast<const BCode_s*>(item->m_list[0])->m_str);
 			}
+		}
 	}
 
 	return urls;
 }
 
-int64_t TorrentParser::GetFileSize()const
+int64_t TorrentParser::GetTotalSize()const
 {
-	auto &dic = GetDictionary();
+	auto fileInfos = GetFileInfo();
+	int64_t res = 0;
+
+	for (auto i : fileInfos)
+	{
+		res += i.size;
+	}
+
+	return res;
+}
+
+std::vector<TorrentParser::DownloadFileInfo> TorrentParser::GetFileInfo() const
+{
+	std::vector<TorrentParser::DownloadFileInfo> items;
+	auto& dic = GetDictionary();
+
 	if (!dic.Contain("info", BCode::dictionary))
-		return 0;
+	{
+		return items;
+	}
 	auto info = static_cast<const BCode_d*>(dic.GetValue("info"));
 
 	/*
@@ -146,59 +166,29 @@ int64_t TorrentParser::GetFileSize()const
 
 	if (info->Contain("length", BCode::interger))
 	{
-		auto length = static_cast<const BCode_i*>(info->GetValue("length"));
-		return length->m_i;
-	}
-	else if (info->Contain("files", BCode::list))
-	{
-		auto files = static_cast<const BCode_l*>(info->GetValue("files"));
-		int64_t size(0);
-		for (auto iter = files->m_list.begin();
-			iter != files->m_list.end();
-			++iter)
+		DownloadFileInfo fileInfo;
+		auto length = static_cast<const BCode_i*>(info->GetValue("length", BCode::interger));
+		auto name = static_cast<const BCode_s*>(info->GetValue("name", BCode::string));
+		auto md5 = static_cast<const BCode_s*>(info->GetValue("md5sum", BCode::string));
+
+		if (length)
 		{
-			auto item = *iter;
-			if (item->GetType() == BCode::dictionary)
-			{
-				auto item_dic = static_cast<const BCode_d*>(item);
-				if (item_dic->Contain("length", BCode::interger))
-					size += static_cast<const BCode_i*>(item_dic->GetValue("length"))->m_i;
-			}
-			else
-			{
-				std::cout << "item in info files is not an dictionary" << std::endl;
-			}
+			fileInfo.size = length->m_i;
+		}
+		if (name)
+		{
+			fileInfo.path = name->m_str;
+		}
+		if (md5)
+		{
+			fileInfo.md5 = md5->m_str;
 		}
 
-		return size;
-	}
-
-	return 0;
-}
-
-std::vector<TorrentParser::DownloadFileInfo> TorrentParser::GetFileInfo() const
-{
-	std::vector<TorrentParser::DownloadFileInfo> items;
-	auto& dic = GetDictionary();
-
-	if (!dic.Contain("info", BCode::dictionary))
-	{
-		return items;
-	}
-	auto info = static_cast<const BCode_d*>(dic.GetValue("info"));
-
-	if (info->Contain("length", BCode::interger))
-	{
-		auto length = static_cast<const BCode_i*>(info->GetValue("length"));
-		auto name = static_cast<const BCode_s*>(info->GetValue("name"));
-		DownloadFileInfo fileInfo;
-		fileInfo.size = length->m_i;
-		fileInfo.path = name->m_str;
 		items.push_back(fileInfo);
 	}
 	else if (info->Contain("files", BCode::list))
 	{
-		auto files = static_cast<const BCode_l*>(info->GetValue("files"));
+		auto files = static_cast<const BCode_l*>(info->GetValue("files", BCode::list));
 		for (auto iter = files->m_list.begin();
 			iter != files->m_list.end();
 			++iter)
@@ -209,14 +199,19 @@ std::vector<TorrentParser::DownloadFileInfo> TorrentParser::GetFileInfo() const
 				auto item_dic = static_cast<const BCode_d*>(item);
 				if (item_dic->Contain("length", BCode::interger))
 				{
-					auto length = static_cast<const BCode_i*>(item_dic->GetValue("length"));
-					auto path = static_cast<const BCode_l*>(item_dic->GetValue("path"));
+					auto length = static_cast<const BCode_i*>(item_dic->GetValue("length", BCode::interger));
+					auto path = static_cast<const BCode_l*>(item_dic->GetValue("path", BCode::list));
+					auto md5 = static_cast<const BCode_s*>(item_dic->GetValue("md5sum", BCode::string));
 
-					if (path->m_list.size() > 0)
+					if (length && path && path->m_list.size() > 0)
 					{
 						DownloadFileInfo fileInfo;
 						fileInfo.size = length->m_i;
 						fileInfo.path = static_cast<const BCode_s*>(path->m_list[0])->m_str;
+						if (md5)
+						{
+							fileInfo.md5 = md5->m_str;
+						}
 						items.push_back(fileInfo);
 					}
 				}
@@ -232,9 +227,12 @@ std::vector<TorrentParser::DownloadFileInfo> TorrentParser::GetFileInfo() const
 
 int32_t TorrentParser::GetPieceSize()const
 {
+
 	auto &dic = GetDictionary();
 	if (!dic.Contain("info", BCode::dictionary))
+	{
 		return 0;
+	}
 	auto info = static_cast<const BCode_d*>(dic.GetValue("info"));
 
 	if (info->Contain("piece length", BCode::interger))
@@ -252,7 +250,9 @@ int32_t TorrentParser::GetPieceNumber()const
 {
 	auto &dic = GetDictionary();
 	if (!dic.Contain("info", BCode::dictionary))
+	{
 		return 0;
+	}
 	auto info = static_cast<const BCode_d*>(dic.GetValue("info"));
 
 	if (info->Contain("pieces", BCode::string))
@@ -280,7 +280,7 @@ int TorrentFile::LoadFromFile(std::string s)
 	}
 
 	auto fileInfos = m_torrentFileParser.GetFileInfo();
-	auto fileSize = m_torrentFileParser.GetFileSize();
+	auto totalSize = m_torrentFileParser.GetTotalSize();
 	auto pieceNum = m_torrentFileParser.GetPieceNumber();
 	auto pieceSize = m_torrentFileParser.GetPieceSize();
 	auto trackerURLs = m_torrentFileParser.GetTrackerURLs();
@@ -291,9 +291,6 @@ int TorrentFile::LoadFromFile(std::string s)
 	{
 		return -1;
 	}
-
-	m_vTrackers = std::move(trackerURLs);
-
 
 	return 0;
 }

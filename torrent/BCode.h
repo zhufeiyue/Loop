@@ -53,7 +53,8 @@ struct BCode_d : public BCode
 	void Clear();
 	bool Contain(const std::string& )const;
 	bool Contain(const std::string&, BCode::type) const;
-	const BCode* GetValue(const std::string& k)const;
+	const BCode* GetValue(const std::string& k) const;
+	const BCode* GetValue(const std::string& k, BCode::type t) const;
 	virtual void CreateInfoHash(const std::string&, const char*, int);
 private:
 	std::multimap<std::string, BCode*> m_dic;
