@@ -4,6 +4,42 @@
 #include <memory>
 #include <boost/uuid/detail/sha1.hpp>
 
+#ifdef _MSC_VER
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+
+static std::string utf8_to_local(const std::string& strUtf8)
+{
+	std::string res;
+	char buf[2048];
+	wchar_t wbuf[1024];
+
+	if (strUtf8.empty())
+	{
+		return res;
+	}
+
+	// utf8 -> utf16
+	auto n = MultiByteToWideChar(CP_UTF8, 0, strUtf8.c_str(), strUtf8.length(), wbuf, 1024);
+	if (n != 0)
+	{
+		// utf16 -> local
+		n = WideCharToMultiByte(CP_ACP, 0, wbuf, n, buf, 2048, nullptr, nullptr);
+		if (n != 0)
+		{
+			res = std::string(buf, n);
+		}
+	}
+
+	return res;
+}
+#else
+
+static std::string utf8_to_local(const std::string& strUtf8) { return strUtf8; }
+
+#endif
+
+
 using namespace boost;
 
 BCodeInfoHash::BCodeInfoHash()
@@ -103,7 +139,7 @@ std::vector<std::string> TorrentParser::GetTrackerURLs() const
 	auto announce = static_cast<const BCode_s*>(dic.GetValue("announce", BCode::string));
 	if (announce)
 	{
-		urls.push_back(announce->m_str);
+		urls.emplace_back(announce->m_str);
 	}
 
 	auto announce_list = static_cast<const BCode_l*>(dic.GetValue("announce-list", BCode::list));
@@ -114,7 +150,7 @@ std::vector<std::string> TorrentParser::GetTrackerURLs() const
 			auto item = static_cast<const BCode_l*>(*iter);
 			if (item && item->m_list.size() > 0 && item->m_list[0]->GetType() == BCode::string)
 			{
-				urls.push_back(static_cast<const BCode_s*>(item->m_list[0])->m_str);
+				urls.emplace_back(static_cast<const BCode_s*>(item->m_list[0])->m_str);
 			}
 		}
 	}
@@ -169,7 +205,6 @@ std::vector<TorrentParser::DownloadFileInfo> TorrentParser::GetFileInfo() const
 		DownloadFileInfo fileInfo;
 		auto length = static_cast<const BCode_i*>(info->GetValue("length", BCode::interger));
 		auto name = static_cast<const BCode_s*>(info->GetValue("name", BCode::string));
-		auto md5 = static_cast<const BCode_s*>(info->GetValue("md5sum", BCode::string));
 
 		if (length)
 		{
@@ -177,11 +212,7 @@ std::vector<TorrentParser::DownloadFileInfo> TorrentParser::GetFileInfo() const
 		}
 		if (name)
 		{
-			fileInfo.path = name->m_str;
-		}
-		if (md5)
-		{
-			fileInfo.md5 = md5->m_str;
+			fileInfo.path = utf8_to_local(name->m_str);
 		}
 
 		items.push_back(fileInfo);
@@ -201,24 +232,27 @@ std::vector<TorrentParser::DownloadFileInfo> TorrentParser::GetFileInfo() const
 				{
 					auto length = static_cast<const BCode_i*>(item_dic->GetValue("length", BCode::interger));
 					auto path = static_cast<const BCode_l*>(item_dic->GetValue("path", BCode::list));
-					auto md5 = static_cast<const BCode_s*>(item_dic->GetValue("md5sum", BCode::string));
 
-					if (length && path && path->m_list.size() > 0)
+					std::string strPath;
+					for (auto iter = path->m_list.begin(); iter != path->m_list.end(); ++iter)
 					{
-						DownloadFileInfo fileInfo;
-						fileInfo.size = length->m_i;
-						fileInfo.path = static_cast<const BCode_s*>(path->m_list[0])->m_str;
-						if (md5)
+						strPath += "/";
+						auto part = static_cast<BCode_s*>(*iter);
+						if (part)
 						{
-							fileInfo.md5 = md5->m_str;
+							strPath += part->m_str;
 						}
-						items.push_back(fileInfo);
 					}
+
+					DownloadFileInfo fileInfo;
+					fileInfo.size = length->m_i;
+					fileInfo.path = utf8_to_local(strPath);
+
+					items.push_back(fileInfo);
 				}
 			}
 			else
-			{
-			}
+			{}
 		}
 	}
 
@@ -276,11 +310,11 @@ int TorrentFile::LoadFromFile(std::string s)
 	int res = m_torrentFileParser.ParseFromFile(s);
 	if (res < 0)
 	{
+		LOG() << "parse " << s << " error ";
 		return res;
 	}
 
 	auto fileInfos = m_torrentFileParser.GetFileInfo();
-	auto totalSize = m_torrentFileParser.GetTotalSize();
 	auto pieceNum = m_torrentFileParser.GetPieceNumber();
 	auto pieceSize = m_torrentFileParser.GetPieceSize();
 	auto trackerURLs = m_torrentFileParser.GetTrackerURLs();
@@ -290,6 +324,57 @@ int TorrentFile::LoadFromFile(std::string s)
 		infoHash.length() != 20)
 	{
 		return -1;
+	}
+
+	trackerURLs.erase(
+		std::unique(trackerURLs.begin(), trackerURLs.end()),
+		trackerURLs.end());
+
+	// 计算每个文件的位置
+	int32_t pieceNo = 0;
+	int32_t fileNo = 0;
+	int64_t fileLeft = fileInfos[0].size;;
+	int64_t offset = 0;
+	int64_t pieceLeft = pieceSize;
+	int64_t n;
+	while (pieceNo < pieceNum)
+	{
+		n = (std::min)(fileLeft, pieceLeft);
+
+		fileLeft -= n;
+		pieceLeft -= n;
+		offset += n;
+
+		if (fileLeft == 0)
+		{
+			fileInfos[fileNo].iEndPieceIndex = pieceNo;
+			fileInfos[fileNo].iEndPieceOffset = offset;
+
+			fileNo += 1;
+			if (fileNo >= fileInfos.size())
+			{
+				break;
+			}
+			fileLeft = fileInfos[fileNo].size;
+
+			if (offset < pieceSize)
+			{
+				fileInfos[fileNo].iStartPieceIndex = pieceNo;
+				fileInfos[fileNo].iStartPieceOffset = offset;
+			}
+			else
+			{
+				fileInfos[fileNo].iStartPieceIndex = pieceNo + 1;
+				fileInfos[fileNo].iStartPieceOffset = 0;
+			}
+		}
+
+		if (pieceLeft == 0)
+		{
+			pieceNo += 1;
+			offset = 0;
+			pieceLeft = pieceSize;
+		}
 	}
 
 	return 0;

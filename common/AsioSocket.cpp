@@ -1,6 +1,5 @@
 #include "AsioSocket.h"
-#include <regex>
-#include <boost/algorithm/string.hpp>
+#include "common/ParseUrl.h"
 
 using namespace boost;
 
@@ -48,6 +47,7 @@ void UdpClient::OnResolve(const system::error_code& err, const asio::ip::udp::en
 	if (err)
 	{
 		LOG() << __FUNCTION__ << ' ' << err.message();
+		OnError(err);
 		return;
 	}
 
@@ -69,81 +69,14 @@ void UdpClient::OnConnect(const boost::system::error_code& err)
 	if (err)
 	{
 		LOG() << __FUNCTION__ << ' ' << err.message();
+		OnError(err);
 		return;
 	}
 }
 
-static bool ParseUrl(std::string& url,
-	std::string& scheme,
-	std::string& host,
-	std::string& path,
-	int& port)
+void UdpClient::OnError(const boost::system::error_code& err)
 {
-	bool res(false);
-	// https://stackoverflow.com/questions/5620235/cpp-regular-expression-to-validate-url
-	// https://tools.ietf.org/html/rfc3986#page-50
-	std::regex r(
-		R"(^(([^:\/?#]+):)?(//([^\/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?)",
-		std::regex::extended
-	);
-	std::smatch rmath;
 
-	//	scheme = $2
-	//	authority = $4
-	//	path = $5
-	//	query = $7
-	//	fragment = $9
-
-	if (std::regex_match(url, rmath, r))
-	{
-		scheme = rmath[2];
-		if (scheme.empty())
-		{
-			goto End;
-		}
-		boost::to_lower(scheme);
-
-		host = rmath[4];
-		if (host.empty())
-		{
-			goto End;
-		}
-		auto pos = host.find(':');
-		if (pos != std::string::npos)
-		{
-			port = atoi(host.c_str() + pos + 1);
-			host = host.substr(0, pos);
-		}
-		else
-		{
-			if (scheme == "http")
-				port = 80;
-			else if (scheme == "https")
-				port = 443;
-			else
-				goto End;
-		}
-
-		path = std::string(rmath[5]);
-		if (path.empty())
-		{
-			path = '/';
-		}
-		else
-		{
-			auto query = std::string(rmath[7]);
-			if (!query.empty())
-				path = path + '?' + query;
-
-			//auto fragment = std::string(rmath[9]);
-			//if (!fragment.empty())
-			//	path = path + '#' + fragment;
-		}
-
-		res = true;
-	}
-End:
-	return res;
 }
 
 
@@ -321,6 +254,11 @@ void HttpClient::OnRead(const boost::system::error_code& err, std::size_t n)
 	}
 
 	auto s = beast::buffers_to_string(m_response.body().data());
+
+	std::ofstream f;
+	f.open("d:/1.html", std::ofstream::binary | std::ofstream::out);
+	f.write(s.c_str(), s.length());
+	f.close();
 }
 
 void HttpClient::OnHandshake(const boost::system::error_code& err)

@@ -4,7 +4,6 @@
 #include <sdkddkver.h>
 #endif
 #include <boost/asio.hpp>
-#include <boost/lockfree/queue.hpp>
 #include <functional>
 #include <memory>
 #include <thread>

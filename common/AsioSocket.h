@@ -11,8 +11,10 @@ public:
 	int Init(std::string, int port);
 	int Destroy();
 
+protected:
 	virtual void OnResolve(const boost::system::error_code& err, const boost::asio::ip::udp::endpoint& ep);
 	virtual void OnConnect(const boost::system::error_code& err);
+	virtual void OnError(const boost::system::error_code& err);
 
 protected:
 	Eventloop& m_loop;
@@ -28,6 +30,7 @@ public:
 	int Get(std::string);
 	int Abort();
 
+protected:
 	virtual void OnResolver(const boost::system::error_code&, boost::asio::ip::tcp::resolver::results_type);
 	virtual void OnConnect(const boost::system::error_code&);
 	virtual void OnWrite(const boost::system::error_code&, std::size_t);

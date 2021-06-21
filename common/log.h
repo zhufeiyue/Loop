@@ -5,10 +5,6 @@
 #include <fstream>
 #include <sstream>
 
-#ifdef _MSC_VER
-#include <Windows.h>
-#endif
-
 int InitLogger(const char*);
 
 class LogPrintHelper

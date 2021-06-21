@@ -1,7 +1,9 @@
 #pragma once
 
 #include <iostream>
+#include <set>
 #include <sstream>
+
 #include "BCode.h"
 #include "common/log.h"
 
@@ -22,9 +24,13 @@ class TorrentParser
 public:
 	struct DownloadFileInfo
 	{
-		int64_t size = 0;
 		std::string path;
-		std::string md5;
+		int64_t size = 0;
+
+		int32_t iStartPieceIndex = 0;
+		int32_t iStartPieceOffset = 0;
+		int32_t iEndPieceIndex = 0;
+		int32_t iEndPieceOffset = 0;
 	};
 
 	int ParseFromFile(std::string);

@@ -1,5 +1,9 @@
 #include "log.h"
 
+#ifdef _MSC_VER
+#include <Windows.h>
+#endif
+
 static std::ofstream gLogFile;
 int InitLogger(const char* logFileNamePrefix)
 {

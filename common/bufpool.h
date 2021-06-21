@@ -172,3 +172,60 @@ protected:
 		boost::lockfree::capacity<32>, 
 		boost::lockfree::fixed_sized<true>> m_q1, m_q2, m_q3;
 };
+
+template<typename T>
+class RecycleQueue
+{
+public:
+	~RecycleQueue()
+	{
+		m_content.consume_all([](T* p) {if (p)delete p; });
+		m_blank.consume_all([](T* p) {if (p)delete p; });
+	}
+
+	T* GetContent()
+	{
+		T* p = nullptr;
+		if (!m_content.pop(p))
+		{
+			return nullptr;
+		}
+
+		return p;
+	}
+
+	bool ToBlank(T* p)
+	{
+		return p && m_blank.push(p);
+	}
+
+	T* GetBlank()
+	{
+		T* p = nullptr;
+		if (!m_blank.pop(p))
+		{
+			LOG() << __FUNCTION__ << " alloc new T";
+			try
+			{
+				p = new T();
+			}
+			catch (...)
+			{
+				LOG() << "new fail";
+				p = nullptr;
+			}
+		}
+
+		return p;
+	}
+
+	bool ToContent(T* p)
+	{
+		return p && m_content.push(p);
+	}
+
+protected:
+	boost::lockfree::queue<T*,
+		boost::lockfree::capacity<16>,
+		boost::lockfree::fixed_sized<true>> m_content, m_blank;
+};

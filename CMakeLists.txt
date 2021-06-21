@@ -11,7 +11,6 @@ set(CMAKE_PREFIX_PATH ${BoostPath})
 find_package(Boost REQUIRED date_time regex COMPONENTS  REQUIRED)
 #for header only lib
 include_directories(${Boost_INCLUDE_DIRS})
-#link_directories(${Boost_LIBRARY_DIRS})
 message(${Boost_VERSION})
 
 include_directories(${PROJECT_SOURCE_DIR})
