@@ -5,7 +5,7 @@
 #include <sstream>
 
 #include "BCode.h"
-#include "common/log.h"
+#include "Tracker.h"
 
 //https://libtorrent.org/udp_tracker_protocol.html
 //https://wiki.theory.org/index.php/BitTorrentSpecification
@@ -55,4 +55,7 @@ public:
 
 protected:
 	TorrentParser m_torrentFileParser;
+
+protected:
+	std::shared_ptr<UdpTracker> m_pUdpTracker;
 };

@@ -10,7 +10,18 @@
       "cmakeCommandArgs": "",
       "buildCommandArgs": "",
       "ctestCommandArgs": "",
-      "variables": []
+      "variables": [
+        {
+          "name": "OpenSSLPath",
+          "value": "D:\\pf\\openssl64\\OpenSSL-Win64",
+          "type": "STRING"
+        },
+        {
+          "name": "BoostPath",
+          "value": "D:\\BaiduNetdiskDownload\\boostlib",
+          "type": "STRING"
+        }
+      ]
     },
     {
       "name": "x64-Release",
@@ -21,8 +32,7 @@
       "cmakeCommandArgs": "",
       "buildCommandArgs": "",
       "ctestCommandArgs": "",
-      "inheritEnvironments": [ "msvc_x64_x64" ],
-      "variables": []
+      "inheritEnvironments": [ "msvc_x64_x64" ]
     }
   ]
 }

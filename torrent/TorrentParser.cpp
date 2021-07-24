@@ -3,6 +3,8 @@
 #include <iomanip>
 #include <memory>
 #include <boost/uuid/detail/sha1.hpp>
+#include <boost/algorithm/string.hpp>
+#include "common/log.h"
 
 #ifdef _MSC_VER
 #define WIN32_LEAN_AND_MEAN
@@ -20,7 +22,7 @@ static std::string utf8_to_local(const std::string& strUtf8)
 	}
 
 	// utf8 -> utf16
-	auto n = MultiByteToWideChar(CP_UTF8, 0, strUtf8.c_str(), strUtf8.length(), wbuf, 1024);
+	auto n = MultiByteToWideChar(CP_UTF8, 0, strUtf8.c_str(), (int)strUtf8.length(), wbuf, 1024);
 	if (n != 0)
 	{
 		// utf16 -> local
@@ -38,9 +40,6 @@ static std::string utf8_to_local(const std::string& strUtf8)
 static std::string utf8_to_local(const std::string& strUtf8) { return strUtf8; }
 
 #endif
-
-
-using namespace boost;
 
 BCodeInfoHash::BCodeInfoHash()
 {
@@ -219,6 +218,13 @@ std::vector<TorrentParser::DownloadFileInfo> TorrentParser::GetFileInfo() const
 	}
 	else if (info->Contain("files", BCode::list))
 	{
+		auto name = static_cast<const BCode_s*>(info->GetValue("name", BCode::string));
+		std::string strFolderName;
+		if (name)
+		{
+			strFolderName = name->m_str;
+		}
+
 		auto files = static_cast<const BCode_l*>(info->GetValue("files", BCode::list));
 		for (auto iter = files->m_list.begin();
 			iter != files->m_list.end();
@@ -233,7 +239,7 @@ std::vector<TorrentParser::DownloadFileInfo> TorrentParser::GetFileInfo() const
 					auto length = static_cast<const BCode_i*>(item_dic->GetValue("length", BCode::interger));
 					auto path = static_cast<const BCode_l*>(item_dic->GetValue("path", BCode::list));
 
-					std::string strPath;
+					std::string strPath = strFolderName;
 					for (auto iter = path->m_list.begin(); iter != path->m_list.end(); ++iter)
 					{
 						strPath += "/";
@@ -348,7 +354,7 @@ int TorrentFile::LoadFromFile(std::string s)
 		if (fileLeft == 0)
 		{
 			fileInfos[fileNo].iEndPieceIndex = pieceNo;
-			fileInfos[fileNo].iEndPieceOffset = offset;
+			fileInfos[fileNo].iEndPieceOffset = (int32_t)offset;
 
 			fileNo += 1;
 			if (fileNo >= fileInfos.size())
@@ -360,7 +366,7 @@ int TorrentFile::LoadFromFile(std::string s)
 			if (offset < pieceSize)
 			{
 				fileInfos[fileNo].iStartPieceIndex = pieceNo;
-				fileInfos[fileNo].iStartPieceOffset = offset;
+				fileInfos[fileNo].iStartPieceOffset = (int32_t)offset;
 			}
 			else
 			{
@@ -374,6 +380,17 @@ int TorrentFile::LoadFromFile(std::string s)
 			pieceNo += 1;
 			offset = 0;
 			pieceLeft = pieceSize;
+		}
+	}
+
+	for (auto iter = trackerURLs.begin(); iter != trackerURLs.end(); ++iter)
+	{
+		if (boost::istarts_with(*iter, "udp"))
+		{
+			auto pTracker = std::make_shared<UdpTracker>();
+			//pTracker->Init(*iter);
+			//pTracker->Init("udp://tracker.opentrackr.org:1337/announce");
+			break;
 		}
 	}
 

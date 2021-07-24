@@ -62,6 +62,8 @@ void UdpClient::OnResolve(const system::error_code& err, const asio::ip::udp::en
 		{
 			pThis->OnConnect(err);
 		});
+
+	m_pResolver.reset();
 }
 
 void UdpClient::OnConnect(const boost::system::error_code& err)

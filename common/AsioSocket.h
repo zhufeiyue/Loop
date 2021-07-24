@@ -1,12 +1,13 @@
 #pragma once
 #include "EventLoop.h"
+#include "bufpool.h"
 #include <boost/beast.hpp>
 #include <boost/beast/ssl.hpp>
 
 class UdpClient : public std::enable_shared_from_this<UdpClient>
 {
 public:
-	UdpClient(Eventloop&);
+	explicit UdpClient(Eventloop&);
 	virtual ~UdpClient();
 	int Init(std::string, int port);
 	int Destroy();
@@ -25,7 +26,7 @@ protected:
 class HttpClient : public std::enable_shared_from_this<HttpClient>
 {
 public:
-	HttpClient(Eventloop&);
+	explicit HttpClient(Eventloop&);
 	virtual ~HttpClient();
 	int Get(std::string);
 	int Abort();

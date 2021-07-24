@@ -20,3 +20,4 @@ private:
 	AsioEventQueue m_asioQueue;
 };
 
+Eventloop& GetLoop();

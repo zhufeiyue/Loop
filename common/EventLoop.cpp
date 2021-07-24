@@ -1,11 +1,32 @@
 #include "EventLoop.h"
 
+static Eventloop* gLoop = nullptr;
+
+Eventloop& GetLoop()
+{
+	if (gLoop == nullptr)
+	{
+		throw std::logic_error("there is no running loop");
+	}
+
+	return *gLoop;
+}
+
 Eventloop::Eventloop()
 {
+	if (!gLoop)
+	{
+		LOG() << "set global loop";
+		gLoop = this;
+	}
 }
 
 Eventloop::~Eventloop()
 {
+	if (gLoop == this)
+	{
+		gLoop = nullptr;
+	}
 }
 
 int Eventloop::Run()
@@ -21,7 +42,7 @@ int Eventloop::Run()
 		{
 			m_bRunning = false;
 		}
-		else
+		else if(n == 0)
 		{
 			std::this_thread::sleep_for(std::chrono::milliseconds(5));
 		}

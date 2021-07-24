@@ -23,7 +23,7 @@ int AsioEventQueue::PopEvent()
 	auto count = m_context.poll(ec);
 	if (ec)
 	{
-		LOG() << __FUNCTION__ << "asio poll error:" << ec.message();
+		LOG() << __FUNCTION__ << " asio poll error:" << ec.message();
 		return CodeNo;
 	}
 
