@@ -1,4 +1,4 @@
-#include "log.h"
+#include "Log.h"
 
 #ifdef _MSC_VER
 #include <Windows.h>
@@ -74,12 +74,14 @@ std::stringstream& LogPrintHelper::Log()
 	localtime_r(&now_t, &now_tm);
 #endif
 
-	m_ss << std::setw(2) << std::setfill('0') <<(now_tm.tm_mon + 1) << '-' 
-		<< std::setw(2) << std::setfill('0') << now_tm.tm_mday << ' '
-		<< std::setw(2) << std::setfill('0') << now_tm.tm_hour << ':'
-		<< std::setw(2) << std::setfill('0') << now_tm.tm_min << ":"
-		<< std::setw(2) << std::setfill('0') << now_tm.tm_sec 
-		<< '.' << mill << ' ';
+	char buf[32] = { 0 };
+	snprintf(buf, sizeof(buf), "%02d-%02d %02d:%02d:%02d.%03d ", now_tm.tm_mon + 1,
+		now_tm.tm_mday,
+		now_tm.tm_hour,
+		now_tm.tm_min,
+		now_tm.tm_sec,
+		(int)mill);
+	m_ss << buf;
 
 	return m_ss;
 }

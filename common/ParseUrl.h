@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 
-bool ParseUrl(std::string& url,
+bool ParseUrl(const std::string& url,
 	std::string& scheme,
 	std::string& host,
 	std::string& path,

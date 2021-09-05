@@ -1,5 +1,7 @@
+
 #include "AsioSocket.h"
-#include "common/ParseUrl.h"
+#include <common/ParseUrl.h>
+#include <boost/beast/ssl.hpp>
 
 using namespace boost;
 
@@ -84,7 +86,7 @@ void UdpClient::OnError(const boost::system::error_code& err)
 
 HttpClient::HttpClient(Eventloop& loop):
 	m_loop(loop),
-	m_ctx(asio::ssl::context::tlsv12_client)
+	m_pSSLCtx(new asio::ssl::context(asio::ssl::context::tlsv12_client))
 {
 }
 
@@ -181,7 +183,7 @@ void HttpClient::OnConnect(const boost::system::error_code& err)
 	if (m_strScheme == "https")
 	{
 		m_pSSLStreamBase.reset(
-			new beast::ssl_stream<beast::tcp_stream>(m_pStreamBase->release_socket(), m_ctx)
+			new beast::ssl_stream<beast::tcp_stream>(m_pStreamBase->release_socket(), *m_pSSLCtx)
 		);
 		m_pStreamBase.reset();
 

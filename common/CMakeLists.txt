@@ -5,4 +5,6 @@ aux_source_directory(./sqlite3 CommonSourceFile)
 
 add_definitions( -bigobj)
 
+include_directories(${OpenSSLPath}/include)
+
 add_library (common ${CommonSourceFile})

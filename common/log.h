@@ -25,6 +25,8 @@ protected:
 
 enum ErrorCode
 {
+	CodeInvalidParam = -2,
 	CodeNo = -1,
-	CodeOK = 0
+	CodeOK = 0,
+	CodeAgain = 1
 };

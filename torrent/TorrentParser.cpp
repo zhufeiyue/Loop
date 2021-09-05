@@ -4,7 +4,7 @@
 #include <memory>
 #include <boost/uuid/detail/sha1.hpp>
 #include <boost/algorithm/string.hpp>
-#include "common/log.h"
+#include <common/Log.h>
 
 #ifdef _MSC_VER
 #define WIN32_LEAN_AND_MEAN

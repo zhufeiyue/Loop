@@ -1,6 +1,6 @@
 #include "Sqlite3Wrap.h"
+#include "Log.h"
 #include <filesystem>
-#include "log.h"
 
 #ifdef _MSC_VER
 #include <Windows.h>
@@ -77,7 +77,7 @@ int KVStore::DeleteKeyStartWith(const std::string& strKeyStartWith)
 	if (res != SQLITE_OK)
 	{
 		LOG() << sqlite3_errmsg(m_db);
-		return -1;
+		return CodeNo;
 	}
 
 	return CodeOK;

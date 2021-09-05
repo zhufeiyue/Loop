@@ -1,8 +1,8 @@
 #pragma once
 
 #include <memory>
-#include "log.h"
 #include <boost/lockfree/queue.hpp>
+#include "Log.h"
 
 class Buf
 {
@@ -31,7 +31,7 @@ public:
 	{
 		return m_pData;
 	}
-	uint32_t Size()
+	uint32_t Size() const
 	{
 		return m_iSize;
 	}
@@ -48,6 +48,65 @@ protected:
 
 typedef std::shared_ptr<Buf> BufPtr;
 
+template<typename T>
+class ObjectPool
+{
+public:
+	~ObjectPool() 
+	{
+		m_pool.consume_all([](T* p) 
+			{ 
+				if (p) delete p; 
+			}); 
+	}
+
+	template<typename ... Args>
+	T* Get(Args ... args, bool bNewObject = true)
+	{
+		T* p = nullptr;
+		//auto paramLength = sizeof...(args);
+		if (!m_pool.pop(p) && bNewObject)
+		{
+			p = nullptr;
+			try
+			{
+				p = new T(args...);
+				LOG() << __FUNCTION__ <<  " new T";
+			}
+			catch (...)
+			{
+			}
+		}
+
+		return p;
+	}
+
+	bool Put(T* p)
+	{
+		if (!p)
+		{
+			return true;
+		}
+
+		bool b = false;
+		try
+		{
+			b = m_pool.bounded_push(p);
+		}
+		catch (...)
+		{
+			b = false;
+		}
+		return b;
+	}
+
+
+private:
+	boost::lockfree::queue<T*,
+		boost::lockfree::capacity<32>,
+		boost::lockfree::fixed_sized<true>> m_pool;
+};
+
 template <uint32_t s1, uint32_t s2>
 class BufPool
 {
@@ -59,92 +118,67 @@ public:
 
 	~BufPool()
 	{
-		m_q1.consume_all([](Buf* p) {if (p)delete p; });
-		m_q2.consume_all([](Buf* p) {if (p)delete p; });
-		m_q3.consume_all([](Buf* p) {if (p)delete p; });
 	}
 
 	Buf* Alloc(uint32_t size)
 	{
 		Buf* pBuf = nullptr;
-		uint32_t allocSize = 0;
 
 		if(size <= s1)
 		{
-			if (!m_q1.pop(pBuf))
-			{
-				allocSize = s1;
-			}
+			pBuf = m_pool1.Get<uint32_t>(s1, true);
 		}
 		else if (size <= s2)
 		{
-			if (!m_q2.pop(pBuf))
-			{
-				allocSize = s2;
-			}
+			pBuf = m_pool2.Get<uint32_t>(s2, true);
 		}
 		else
 		{
-			if (!m_q3.pop(pBuf))
-			{
-				allocSize = size;
-			}
-			else if (pBuf->Size() < size)
+			pBuf = m_pool3.Get<uint32_t>(size, true);
+			if (pBuf && pBuf->Size() < size)
 			{
 				delete pBuf;
-				pBuf = nullptr;
-				allocSize = size;
+				try
+				{
+					pBuf = new Buf(size);
+				}
+				catch (...)
+				{
+					pBuf = nullptr;
+				}
 			}
 		}
-
-		if (allocSize > 0)
-		{
-			try
-			{
-				LOG() << "alloc buf " << allocSize << " s1:" << s1 << " s2:" << s2;
-				pBuf = new Buf(allocSize);
-			}
-			catch (...)
-			{
-			}
-		}
-		pBuf->PlayloadSize() = size;
 
 		return pBuf;
 	}
 
 	bool Free(Buf* pBuf)
 	{
-		if (pBuf)
+		if (!pBuf)
 		{
-			pBuf->PlayloadSize() = 0;
-			if (pBuf->Size() <= s1)
-			{
-				if (m_q1.push(pBuf))
-				{
-					pBuf = nullptr;
-				}
-			}
-			else if (pBuf->Size() <= s2)
-			{
-				if (m_q2.push(pBuf))
-				{
-					pBuf = nullptr;
-				}
-			}
-			else
-			{
-				if (m_q3.push(pBuf))
-				{
-					pBuf = nullptr;
-				}
-			}
+			return true;
+		}
 
-			if (pBuf)
+		pBuf->PlayloadSize() = 0;
+		if (pBuf->Size() <= s1)
+		{
+			if (!m_pool1.Put(pBuf))
 			{
-				LOG() << "free buf " << pBuf->Size() << " s1:" << s1 << " s2:" << s2;
 				delete pBuf;
-				pBuf = nullptr;
+			}
+		}
+		else if (pBuf->Size() <= s2)
+		{
+			if (!m_pool2.Put(pBuf))
+			{
+				delete pBuf;
+			}
+		}
+		else
+		{
+			if (!m_pool3.Put(pBuf))
+			{
+				delete pBuf;
 			}
 		}
 
@@ -168,64 +202,5 @@ public:
 	}
 
 protected:
-	boost::lockfree::queue<Buf*, 
-		boost::lockfree::capacity<32>, 
-		boost::lockfree::fixed_sized<true>> m_q1, m_q2, m_q3;
-};
-
-template<typename T>
-class RecycleQueue
-{
-public:
-	~RecycleQueue()
-	{
-		m_content.consume_all([](T* p) {if (p)delete p; });
-		m_blank.consume_all([](T* p) {if (p)delete p; });
-	}
-
-	T* GetContent()
-	{
-		T* p = nullptr;
-		if (!m_content.pop(p))
-		{
-			return nullptr;
-		}
-
-		return p;
-	}
-
-	bool ToBlank(T* p)
-	{
-		return p && m_blank.push(p);
-	}
-
-	T* GetBlank()
-	{
-		T* p = nullptr;
-		if (!m_blank.pop(p))
-		{
-			LOG() << __FUNCTION__ << " alloc new T";
-			try
-			{
-				p = new T();
-			}
-			catch (...)
-			{
-				LOG() << "new fail";
-				p = nullptr;
-			}
-		}
-
-		return p;
-	}
-
-	bool ToContent(T* p)
-	{
-		return p && m_content.push(p);
-	}
-
-protected:
-	boost::lockfree::queue<T*,
-		boost::lockfree::capacity<16>,
-		boost::lockfree::fixed_sized<true>> m_content, m_blank;
+	ObjectPool<Buf> m_pool1, m_pool2, m_pool3;
 };

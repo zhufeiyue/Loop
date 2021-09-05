@@ -1,4 +1,5 @@
 #include "EventQueue.h"
+#include "Log.h"
 
 AsioEventQueue::AsioEventQueue():
 	m_context(1)

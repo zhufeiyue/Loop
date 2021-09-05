@@ -7,7 +7,6 @@
 #include <functional>
 #include <memory>
 #include <thread>
-#include "log.h"
 
 typedef std::function<int()> Fn;
 

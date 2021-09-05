@@ -1,8 +1,7 @@
 #pragma once
 #include "EventLoop.h"
-#include "bufpool.h"
+#include "BufPool.h"
 #include <boost/beast.hpp>
-#include <boost/beast/ssl.hpp>
 
 class UdpClient : public std::enable_shared_from_this<UdpClient>
 {
@@ -22,6 +21,19 @@ protected:
 	std::unique_ptr<boost::asio::ip::udp::resolver> m_pResolver;
 	std::unique_ptr<boost::asio::ip::udp::socket> m_pSocket;
 };
+
+namespace boost {
+	namespace asio {
+		namespace ssl {
+			class context;
+		}
+	}
+
+	namespace beast {
+		template <typename T>
+		class ssl_stream;
+	}
+}
 
 class HttpClient : public std::enable_shared_from_this<HttpClient>
 {
@@ -48,9 +60,9 @@ protected:
 	std::unique_ptr<boost::asio::ip::tcp::resolver> m_pResolver;
 	std::unique_ptr<boost::beast::tcp_stream> m_pStreamBase;
 	std::unique_ptr<boost::beast::ssl_stream<boost::beast::tcp_stream>> m_pSSLStreamBase;
-	boost::asio::ssl::context m_ctx;
+	std::unique_ptr<boost::asio::ssl::context> m_pSSLCtx;
 
-	boost::beast::http::response<boost::beast::http::dynamic_body> m_response;
 	boost::beast::multi_buffer m_buffer;
 	boost::beast::http::verb m_method;
+	boost::beast::http::response<boost::beast::http::dynamic_body> m_response;
 };
