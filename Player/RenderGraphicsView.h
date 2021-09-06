@@ -6,6 +6,7 @@
 #include <QPixmap>
 #include <QImage>
 #include <QEvent>
+#include <QStyleOptionGraphicsItem>
 
 #include "FFmpegDemuxer.h"
 
@@ -14,16 +15,43 @@ class VideoItem : public QGraphicsItem
 public:
 	VideoItem();
 
-	QImage& Image()
+	int ImageWidth() const
 	{
-		return m_image;
+		return m_image.width();
 	}
+
+	int ImageHeight() const
+	{
+		return m_image.height();
+	}
+
+	QImage::Format ImageFormat() const
+	{
+		return m_image.format();
+	}
+
+	qsizetype ImageBytesPerLine() const
+	{
+		return m_image.bytesPerLine();
+	}
+
+	uchar* ImageData()
+	{
+		return m_image.bits();
+	}
+
+	int SetCanvasSize(int w, int h);
+
+	int SetNewImage(int w, int h, QImage::Format  f);
+
 private:
 	QRectF boundingRect() const  override;
 	void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget = nullptr);
 
 private:
 	QImage m_image;
+	QRectF m_rectBound;
+	QRectF m_rectDraw;
 };
 
 class VideoRenderGraphicsView : public IRender
@@ -40,9 +68,8 @@ protected:
 
 protected:
 	QGraphicsView* m_pRenderView = nullptr;
-	QGraphicsPixmapItem* m_pImageItem = nullptr;
+	VideoItem* m_pVideoItem = nullptr;
 	QObject* m_pDetectResize = nullptr;
-	QImage m_image;
 
 	int m_iWidth = 0;
 	int m_iHeight = 0;

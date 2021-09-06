@@ -111,8 +111,14 @@ public:
 
 	int Configure(int srcW, int srcH, AVPixelFormat srcFmt,
 		int dstW, int dstH, AVPixelFormat dstFmt);
-	int Convert(const uint8_t* const srcSlice[], const int srcStride[]);
+	int Convert(const uint8_t* const src[], const int srcStride[]);
+	int Convert(const uint8_t* const src[], const int srcStride[], uint8_t* const dst[], const int dstStride[]);
+	AVFrame* Frame()
+	{
+		return m_pFrame;
+	}
 
+private:
 	int m_iSrcW = 0;
 	int m_iSrcH = 0;
 	SwsContext* m_pVSws = NULL;
@@ -129,6 +135,12 @@ public:
 		int dstSampleRate, uint64_t dstLayout, AVSampleFormat dstFmt,
 		int dstSampleCount);
 	int Convert(const uint8_t**, int);
+	AVFrame* Frame()
+	{
+		return m_pFrame;
+	}
+
+private:
 
 	SwrContext* m_pASwr = NULL;
 	AVFrame* m_pFrame = NULL;

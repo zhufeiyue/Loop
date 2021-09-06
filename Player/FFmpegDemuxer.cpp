@@ -696,39 +696,41 @@ int FFmpegHWDecode::CreateDecoder()
 
 		auto findDecodeTypeFunc = [=](AVHWDeviceType type) {
 			AVDictionary* opts = NULL;
-			auto iter = supportHWType.begin();
-			for (; iter != supportHWType.end(); ++iter)
-			{
-				if (iter->first == type)
+
+			auto iter = std::find_if(supportHWType.begin(), supportHWType.end(), [type](const std::pair<AVHWDeviceType, AVPixelFormat>& item)
 				{
-					if (av_hwdevice_ctx_create(&hw_device_ctx, type, NULL, NULL, 0) < 0)
-					{
-						return false;
-					}
-
-					hw_pix_fmt = iter->second;
-					m_pVCodecContext->opaque = this;
-					m_pVCodecContext->get_format = get_hw_format;
-					m_pVCodecContext->hw_device_ctx = av_buffer_ref(hw_device_ctx);
-					m_pVCodecContext->flags |= AV_CODEC_FLAG_LOW_DELAY;
-					if (avcodec_open2(m_pVCodecContext, m_pVCodec, &opts) < 0)
-					{
-						av_buffer_unref(&hw_device_ctx);
-						av_buffer_unref(&(m_pVCodecContext->hw_device_ctx));
-						m_pVCodecContext->hw_device_ctx = NULL;
-						m_pVCodecContext->get_format = NULL;
-						return false;
-					}
-
-					return true;
-				}
+					return item.first == type;
+				});
+			if (iter == supportHWType.end())
+			{
+				return false;
 			}
-			return false;
+
+			if (av_hwdevice_ctx_create(&hw_device_ctx, type, NULL, NULL, 0) < 0)
+			{
+				return false;
+			}
+
+			hw_pix_fmt = iter->second;
+			m_pVCodecContext->opaque = this;
+			m_pVCodecContext->get_format = get_hw_format;
+			m_pVCodecContext->hw_device_ctx = av_buffer_ref(hw_device_ctx);
+			if (avcodec_open2(m_pVCodecContext, m_pVCodec, &opts) < 0)
+			{
+				av_buffer_unref(&hw_device_ctx);
+				av_buffer_unref(&(m_pVCodecContext->hw_device_ctx));
+				m_pVCodecContext->hw_device_ctx = NULL;
+				m_pVCodecContext->get_format = NULL;
+				return false;
+			}
+
+			return true;
+
 		};
 
 		if (findDecodeTypeFunc(AV_HWDEVICE_TYPE_CUDA) ||
-			findDecodeTypeFunc(AV_HWDEVICE_TYPE_DXVA2) ||
-			findDecodeTypeFunc(AV_HWDEVICE_TYPE_D3D11VA))
+			findDecodeTypeFunc(AV_HWDEVICE_TYPE_D3D11VA) ||
+			findDecodeTypeFunc(AV_HWDEVICE_TYPE_DXVA2))
 		{
 			m_bIsSupportHW = true;
 		}
@@ -859,6 +861,16 @@ int FFmpegImageScale::Convert(const uint8_t* const srcSlice[], const int srcStri
 	}
 
 	return sws_scale(m_pVSws, srcSlice, srcStride, 0, m_iSrcH, m_pFrame->data, m_pFrame->linesize);
+}
+
+int FFmpegImageScale::Convert(const uint8_t* const srcSlice[], const int srcStride[], uint8_t* const dst[], const int dstStride[])
+{
+	if (!m_pVSws)
+	{
+		return -1;
+	}
+
+	return sws_scale(m_pVSws, srcSlice, srcStride, 0, m_iSrcH, dst, dstStride);
 }
 
 

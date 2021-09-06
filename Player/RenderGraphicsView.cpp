@@ -6,15 +6,44 @@
 VideoItem::VideoItem():
 	QGraphicsItem(nullptr)
 {
+	SetNewImage(128, 128, QImage::Format::Format_RGB32);
+}
 
+int VideoItem::SetNewImage(int w, int h, QImage::Format  f)
+{
+	prepareGeometryChange();
+
+	m_image = QImage(w, h, f);
+	m_image.fill(QColor(20, 20, 20, 0));
+	m_rectBound = QRectF(0, 0, m_image.width(), m_image.height());
+	//m_rectDraw = m_rectBound;
+
+	return CodeOK;
+}
+
+int VideoItem::SetCanvasSize(int canvasWidth, int canvasHeight)
+{
+	auto scale = (std::min)(1.0 * canvasWidth / m_image.width(), 1.0 * canvasHeight / m_image.height());
+	auto drawWidth = m_image.width() * scale;
+	auto drawHeight = m_image.height() * scale;
+	auto drawX = (canvasWidth - drawWidth) / 2;
+	auto drawY = (canvasHeight - drawHeight) / 2;
+
+	prepareGeometryChange();
+	m_rectBound = QRectF(0, 0, canvasWidth, canvasHeight);
+	m_rectDraw = QRectF(drawX, drawY, drawWidth, drawHeight);
+
+	return CodeOK;
 }
 
 QRectF VideoItem::boundingRect() const
 {
+	return m_rectBound;
 }
 
-void VideoItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*)
+void VideoItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget*)
 {
+	painter->drawImage(m_rectDraw, m_image);
 }
 
 
@@ -27,13 +56,9 @@ VideoRenderGraphicsView::VideoRenderGraphicsView(QGraphicsView* pView):
 	}
 
 	auto pScene = pView->scene();
-	m_pImageItem = new QGraphicsPixmapItem();
-	m_pImageItem->setVisible(false);
-	m_pImageItem->setShapeMode(QGraphicsPixmapItem::BoundingRectShape);
-	m_pImageItem->setTransformationMode(Qt::FastTransformation);
-	//m_pImageItem->setTransformationMode(Qt::SmoothTransformation);
-
-	pScene->addItem(m_pImageItem);
+	m_pVideoItem = new VideoItem();
+	m_pVideoItem->setVisible(false);
+	pScene->addItem(m_pVideoItem);
 
 	m_pDetectResize = new GraphicsViewEventFilter(this, pView);
 }
@@ -48,11 +73,11 @@ VideoRenderGraphicsView::~VideoRenderGraphicsView()
 	if (m_pRenderView)
 	{
 		auto pScene = m_pRenderView->scene();
-		if (m_pImageItem)
+		if (m_pVideoItem)
 		{
-			pScene->removeItem(m_pImageItem);
-			delete m_pImageItem;
-			m_pImageItem = nullptr;
+			pScene->removeItem(m_pVideoItem);
+			delete m_pVideoItem;
+			m_pVideoItem = nullptr;
 		}
 	}
 }
@@ -79,9 +104,8 @@ int VideoRenderGraphicsView::ConfigureRender(RenderInfo mediaInfo)
 		{
 			return CodeNo;
 		}
-		auto scale = (std::min)(1.0 * canvasWidth / m_iWidth, 1.0 * canvasHeight / m_iHeight);
-		m_pImageItem->setScale(scale);
-		LOG() << "new scale " << m_pImageItem->scale();
+
+		m_pVideoItem->SetCanvasSize(canvasWidth, canvasHeight);
 		return CodeOK;
 	}
 	else
@@ -112,9 +136,11 @@ int VideoRenderGraphicsView::ConfigureRender(int width, int height, AVPixelForma
 	};
 	auto iter = mapQImageFFmpegFormat.find(QImage::Format::Format_RGB32);
 
-	if (width != m_image.width() || height != m_image.height() || iter->first != m_image.format())
+	if (width != m_pVideoItem->ImageWidth()
+		|| height != m_pVideoItem->ImageHeight()
+		|| iter->first != m_pVideoItem->ImageFormat())
 	{
-		m_image = QImage(width, height, iter->first);
+		m_pVideoItem->SetNewImage(width, height, iter->first);
 	}
 
 	if (format != iter->second)
@@ -130,12 +156,9 @@ int VideoRenderGraphicsView::ConfigureRender(int width, int height, AVPixelForma
 		m_pImageConvert.reset();
 	}
 
-	auto scale = (std::min)(1.0 * canvasWidth / width, 1.0 * canvasHeight / height);
-	m_pImageItem->setTransformOriginPoint(width / 2.0f, height / 2.0f);
-	m_pImageItem->setScale(scale);
-	m_pImageItem->setVisible(true);
-	auto pos = m_pImageItem->pos();
-	auto pos1 = m_pImageItem->scenePos();
+	m_pVideoItem->SetCanvasSize(canvasWidth, canvasHeight);
+	m_pVideoItem->setVisible(true);
+
 
 	return CodeOK;
 }
@@ -162,23 +185,24 @@ int VideoRenderGraphicsView::UpdataFrame(FrameHolderPtr data)
 
 	if (m_pImageConvert)
 	{
-		AVFrame* pTemp = pFrame;
-		int res = m_pImageConvert->Convert(pTemp->data, pTemp->linesize);
+		uint8_t* dst[2] = { m_pVideoItem->ImageData(), nullptr };
+		int stride[2] = { m_pVideoItem->ImageBytesPerLine(), 0 };
+		int res = m_pImageConvert->Convert(pFrame->data, pFrame->linesize, dst, stride);
 		if (res < 0)
 		{
 			return CodeNo;
 		}
-
-		pFrame = m_pImageConvert->m_pFrame;
 	}
-
-	if (pFrame->linesize[0] != m_image.bytesPerLine())
+	else
 	{
-		return CodeNo;
+		if (m_pVideoItem->ImageBytesPerLine() != pFrame->linesize[0])
+		{
+			return CodeNo;
+		}
+		memcpy(m_pVideoItem->ImageData(), pFrame->data[0], pFrame->height * pFrame->linesize[0]);
 	}
 
-	memcpy(m_image.bits(), pFrame->data[0], pFrame->linesize[0] * pFrame->height);
-	m_pImageItem->setPixmap(QPixmap::fromImage(m_image));
+	m_pVideoItem->update();
 
 	return CodeOK;
 }

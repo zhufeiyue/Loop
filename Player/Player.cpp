@@ -133,6 +133,7 @@ void Player::OnTimeout()
 	}
 	else
 	{
+		LOG() << "play stop";
 		m_pTimer->stop();
 	}
 }

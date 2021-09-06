@@ -26,6 +26,8 @@ private:
 	std::unique_ptr<Eventloop> m_pEventLoop;
 	std::unique_ptr<FFmpegDecode> m_pDecoder;
 	std::atomic<int> m_iCachedFrameCount = 0;
+	bool m_bDecoding = false;
+	bool m_bDecodeError = false;
 	FramePool m_cachedVideoFrame;
 	FramePool m_blankVideoFrame;
 };

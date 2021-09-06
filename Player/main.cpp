@@ -44,10 +44,10 @@ int main(int argc, char* argv[])
 
 	Player player;
 	player.InitVideoRender(&w);
-	//player.StartPlay("D:/迅雷下载/1/222/222.mp4");
+	player.StartPlay("D:/迅雷下载/阳光电影www.ygdy8.com.神奇女侠1984.2020.BD.1080P.国英双语双字.mkv");
 	//player.StartPlay("D:/迅雷云盘/veep.s07e06.web.h264-memento[ettv].mkv");
 	//player.StartPlay("D:/迅雷云盘/Veep (2012) - S07E07 - Veep (1080p BluRay x265 Silence).mkv");
-	player.StartPlay("D:/迅雷云盘/楚门的世界.1080p.国英双语.BD中英双字/楚门的世界.1080p.国英双语.BD中英双字[66影视www.66Ys.Co].mp4");
+	//player.StartPlay("D:/迅雷云盘/楚门的世界.1080p.国英双语.BD中英双字/楚门的世界.1080p.国英双语.BD中英双字[66影视www.66Ys.Co].mp4");
 
 
 	return app.exec();

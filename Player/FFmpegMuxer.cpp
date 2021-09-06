@@ -362,7 +362,7 @@ int FFmpegMuxer::OpenAudioStream(MuxerStream* ms)
 			 return n;
 		 }
 
-		 pInputFrame = m_pScale->m_pFrame;
+		 pInputFrame = m_pScale->Frame();
 	 }
 
 	 pInputFrame->pts = 1000 * m_iFrameCount++;
@@ -476,9 +476,9 @@ int FFmpegMuxer::OpenAudioStream(MuxerStream* ms)
 	 AVPacket packet;
 	 av_init_packet(&packet);
 
-	 m_pConvert->m_pFrame->pts = m_iSampleCount;
+	 m_pConvert->Frame()->pts = m_iSampleCount;
 
-	 n = avcodec_send_frame(m_pAStream->pCodecContext, m_pConvert->m_pFrame);
+	 n = avcodec_send_frame(m_pAStream->pCodecContext, m_pConvert->Frame());
 	 m_iSampleCount += outcount;
 	 if (n < 0)
 	 {

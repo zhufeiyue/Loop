@@ -14,6 +14,8 @@ DecodeFile::DecodeFile()
 
 DecodeFile::~DecodeFile()
 {
+	m_bDecodeError = true;
+
 	if (m_pEventLoop)
 	{
 		m_pEventLoop->Exit();
@@ -139,24 +141,33 @@ int DecodeFile::Seek(int64_t)
 
 int DecodeFile::GetNextFrame(FrameHolderPtr& frameInfo, int type)
 {
+	if (m_bDecodeError)
+	{
+		return CodeNo;
+	}
+
 	auto pFrame = m_cachedVideoFrame.Alloc();
 	if (!pFrame || m_iCachedFrameCount < 2)
 	{
-		if (m_pEventLoop && m_pEventLoop->IsRunning())
+		if (m_pEventLoop && m_pEventLoop->IsRunning() && !m_bDecoding)
 		{
 			m_pEventLoop->AsioQueue().PushEvent([this]() 
 				{
-					while (m_iCachedFrameCount < 5)
+					m_bDecoding = true;
+					while (m_iCachedFrameCount < 5 && !m_bDecodeError)
 					{
 						if (DecodeVideoFrame() != CodeOK)
 						{
+							// todo 获得出错原因，end of stream ???
+							m_bDecodeError = true;
 							break;
 						}
 						else
 						{
 							m_iCachedFrameCount += 1;
 						}
-					};
+					}
+					m_bDecoding = false;
 					return CodeOK;
 				});
 		}
