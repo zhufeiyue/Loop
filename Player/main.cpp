@@ -5,6 +5,7 @@
 #include <QGraphicsPixmapItem>
 #include <QCloseEvent>
 #include <QOpenGLWidget>
+#include <QJsonDocument>
 
 #include "FFmpegDemuxer.h"
 #include "DecodeFile.h"
@@ -13,18 +14,18 @@
 #include <common/Dic.h>
 #include <common/Log.h>
 
-#include <set>
 
 int main(int argc, char* argv[])
 {
 	QApplication app(argc, argv);
 
+	return 0;
 	QWidget w;
 	auto pScene = new QGraphicsScene(&w);
 	auto pView = new QGraphicsView(pScene, &w);
 	pView->setBackgroundBrush(QBrush(QColor(20, 20, 20)));
 	pView->setCacheMode(QGraphicsView::CacheBackground);
-	pView->setViewport(new QOpenGLWidget());
+	//pView->setViewport(new QOpenGLWidget());
 	pView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 	pView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 	pView->setInteractive(false);
@@ -33,19 +34,20 @@ int main(int argc, char* argv[])
 	pView->setOptimizationFlag(QGraphicsView::DontSavePainterState);
 	pView->setRenderHint(QPainter::TextAntialiasing, false);
 	pView->setFrameShape(QFrame::NoFrame); // remove border
-	auto align = pView->alignment();
+	pView->setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
 
-	new QHBoxLayout(&w);
-	w.layout()->setContentsMargins(0, 0, 0, 0);
-	w.layout()->setSpacing(0);
-	w.layout()->addWidget(pView);
+	auto pLayout = new QGridLayout(&w);
+	pLayout->setContentsMargins(0, 0, 0, 0);
+	pLayout->setSpacing(0);
+	pLayout->addWidget(pView, 0, 0);
+
 	w.resize(800, 600);
 	w.show();
 
 	Player player;
 	player.InitVideoRender(&w);
-	player.StartPlay("D:/迅雷下载/阳光电影www.ygdy8.com.神奇女侠1984.2020.BD.1080P.国英双语双字.mkv");
-	//player.StartPlay("D:/迅雷云盘/veep.s07e06.web.h264-memento[ettv].mkv");
+	//player.StartPlay("D:/迅雷下载/阳光电影www.ygdy8.com.神奇女侠1984.2020.BD.1080P.国英双语双字.mkv");
+	player.StartPlay("D:/迅雷下载/1/2222/45.mp4");
 	//player.StartPlay("D:/迅雷云盘/Veep (2012) - S07E07 - Veep (1080p BluRay x265 Silence).mkv");
 	//player.StartPlay("D:/迅雷云盘/楚门的世界.1080p.国英双语.BD中英双字/楚门的世界.1080p.国英双语.BD中英双字[66影视www.66Ys.Co].mp4");
 

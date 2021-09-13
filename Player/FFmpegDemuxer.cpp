@@ -12,6 +12,13 @@ static int InterruptCB(void* para)
 	return 0;
 }
 
+static void PrintFFmpegError(int code)
+{
+	char buf[64] = { 0 };
+	av_make_error_string(buf, sizeof(buf), code);
+	LOG() << buf;
+}
+
 FFmpegDemuxer::FFmpegDemuxer(std::string strMediaAddress)
 {
 	m_pFormatContext = avformat_alloc_context();
@@ -20,7 +27,6 @@ FFmpegDemuxer::FFmpegDemuxer(std::string strMediaAddress)
 
 	AVDictionary* opts = NULL;
 	int n = 0;
-	char buf[128] = { 0 };
 
 	if (av_stristart(strMediaAddress.c_str(), "rtsp", NULL)||
 		av_stristart(strMediaAddress.c_str(), "rtmp", NULL))
@@ -38,16 +44,15 @@ FFmpegDemuxer::FFmpegDemuxer(std::string strMediaAddress)
 	n = avformat_open_input(&m_pFormatContext, strMediaAddress.c_str(), NULL, &opts);
 	if (n != 0)
 	{
-		av_strerror(n, buf, 128);
-		LOG() << buf << " " << strMediaAddress;
+		PrintFFmpegError(n);
+		LOG() << strMediaAddress;
 		return;
 	}
 
 	n = avformat_find_stream_info(m_pFormatContext, NULL);
 	if (n < 0)
 	{
-		av_strerror(n, buf, 128);
-		LOG() << buf;
+		PrintFFmpegError(n);
 		return;
 	}
 
@@ -161,9 +166,7 @@ int FFmpegDemuxer::DemuxVideo(AVPacket& got)
 		n = av_read_frame(m_pFormatContext, &packet);
 		if (n < 0)
 		{
-			char buf[128];
-			av_strerror(n, buf, 128);
-			LOG() << buf;
+			PrintFFmpegError(n);
 			return n;
 		}
 
@@ -233,9 +236,7 @@ int FFmpegDemuxer::DemuxAudio(AVPacket& got)
 		n = av_read_frame(m_pFormatContext, &got);
 		if (n < 0)
 		{
-			char buf[128];
-			av_strerror(n, buf, 128);
-			LOG() << buf;
+			PrintFFmpegError(n);
 			return n;
 		}
 
@@ -480,7 +481,11 @@ int FFmpegDecode::CreateDecoder()
 		m_pVCodecContext->framerate;
 		m_pVCodecContext->flags |= AV_CODEC_FLAG_LOW_DELAY;
 		m_pVCodecContext->thread_count = 0;
-		avcodec_open2(m_pVCodecContext, m_pVCodec, NULL);
+		n = avcodec_open2(m_pVCodecContext, m_pVCodec, NULL);
+		if (n < 0)
+		{
+			PrintFFmpegError(n);
+		}
 	}
 
 	if (m_iAudioIndex >= 0) 
@@ -488,10 +493,14 @@ int FFmpegDecode::CreateDecoder()
 		m_pACodec = avcodec_find_decoder(m_aCodecID);
 		m_pACodecContext = avcodec_alloc_context3(m_pACodec);
 		avcodec_parameters_to_context(m_pACodecContext, m_pFormatContext->streams[m_iAudioIndex]->codecpar);
-		avcodec_open2(m_pACodecContext, m_pACodec, NULL);
+		n = avcodec_open2(m_pACodecContext, m_pACodec, NULL);
+		if (n < 0)
+		{
+			PrintFFmpegError(n);
+		}
 	}
 
-	return 0;
+	return n;
 }
 
 int FFmpegDecode::DecodeVideo(AVPacket& packet)
@@ -509,9 +518,7 @@ int FFmpegDecode::DecodeVideo(AVPacket& packet)
 		av_packet_unref(&packet);
 		if (n < 0)
 		{
-			char buf[64];
-			av_strerror(n, buf, 64);
-			LOG() << buf;
+			PrintFFmpegError(n);
 			return n;
 		}
 	}
@@ -519,9 +526,7 @@ int FFmpegDecode::DecodeVideo(AVPacket& packet)
 	n = avcodec_receive_frame(m_pVCodecContext, m_pVFrame);
 	if (n < 0)
 	{
-		char buf[64];
-		av_strerror(n, buf, 64);
-		LOG() << buf;
+		PrintFFmpegError(n);
 	}
 
 	return n;
@@ -542,9 +547,7 @@ int FFmpegDecode::DecodeAudio(AVPacket& packet)
 		av_packet_unref(&packet);
 		if (n < 0)
 		{
-			char buf[64];
-			av_strerror(n, buf, 64);
-			LOG() << buf;
+			PrintFFmpegError(n);
 			return n;
 		}
 	}
@@ -552,9 +555,7 @@ int FFmpegDecode::DecodeAudio(AVPacket& packet)
 	n = avcodec_receive_frame(m_pACodecContext, m_pAFrame);
 	if (n < 0)
 	{
-		char buf[64];
-		av_strerror(n, buf, 64);
-		LOG() << buf;
+		PrintFFmpegError(n);
 	}
 
 	return n;
@@ -696,6 +697,7 @@ int FFmpegHWDecode::CreateDecoder()
 
 		auto findDecodeTypeFunc = [=](AVHWDeviceType type) {
 			AVDictionary* opts = NULL;
+			int n = 0;
 
 			auto iter = std::find_if(supportHWType.begin(), supportHWType.end(), [type](const std::pair<AVHWDeviceType, AVPixelFormat>& item)
 				{
@@ -706,8 +708,10 @@ int FFmpegHWDecode::CreateDecoder()
 				return false;
 			}
 
-			if (av_hwdevice_ctx_create(&hw_device_ctx, type, NULL, NULL, 0) < 0)
+			n = av_hwdevice_ctx_create(&hw_device_ctx, type, NULL, NULL, 0);
+			if (n < 0)
 			{
+				PrintFFmpegError(n);
 				return false;
 			}
 
@@ -715,8 +719,12 @@ int FFmpegHWDecode::CreateDecoder()
 			m_pVCodecContext->opaque = this;
 			m_pVCodecContext->get_format = get_hw_format;
 			m_pVCodecContext->hw_device_ctx = av_buffer_ref(hw_device_ctx);
-			if (avcodec_open2(m_pVCodecContext, m_pVCodec, &opts) < 0)
+
+			n = avcodec_open2(m_pVCodecContext, m_pVCodec, &opts);
+			if (n < 0)
 			{
+				PrintFFmpegError(n);
+
 				av_buffer_unref(&hw_device_ctx);
 				av_buffer_unref(&(m_pVCodecContext->hw_device_ctx));
 				m_pVCodecContext->hw_device_ctx = NULL;
@@ -729,8 +737,8 @@ int FFmpegHWDecode::CreateDecoder()
 		};
 
 		if (findDecodeTypeFunc(AV_HWDEVICE_TYPE_CUDA) ||
-			findDecodeTypeFunc(AV_HWDEVICE_TYPE_D3D11VA) ||
-			findDecodeTypeFunc(AV_HWDEVICE_TYPE_DXVA2))
+			findDecodeTypeFunc(AV_HWDEVICE_TYPE_DXVA2) /*||
+			findDecodeTypeFunc(AV_HWDEVICE_TYPE_D3D11VA)*/)
 		{
 			m_bIsSupportHW = true;
 		}
@@ -749,8 +757,12 @@ int FFmpegHWDecode::CreateDecoder()
 		m_pACodec = avcodec_find_decoder(m_aCodecID);
 		m_pACodecContext = avcodec_alloc_context3(m_pACodec);
 		avcodec_parameters_to_context(m_pACodecContext, m_pFormatContext->streams[m_iAudioIndex]->codecpar);
-		if (avcodec_open2(m_pACodecContext, m_pACodec, NULL) < 0)
+
+		int n = avcodec_open2(m_pACodecContext, m_pACodec, NULL);
+		if (n < 0)
 		{
+			PrintFFmpegError(n);
+			return CodeNo;
 		}
 	}
 
@@ -777,9 +789,7 @@ int FFmpegHWDecode::DecodeVideo(AVPacket& packet)
 		av_packet_unref(&packet);
 		if (n < 0)
 		{
-			char buf[64];
-			av_strerror(n, buf, 64);
-			LOG() << buf;
+			PrintFFmpegError(n);
 			return n;
 		}
 	}
@@ -787,13 +797,23 @@ int FFmpegHWDecode::DecodeVideo(AVPacket& packet)
 	n = avcodec_receive_frame(m_pVCodecContext, m_hwVFrame);
 	if (n < 0)
 	{
-		char buf[64];
-		av_strerror(n, buf, 64);
-		LOG() << buf;
+		PrintFFmpegError(n);
 	}
 	else
 	{
+		//if (m_pVFrame && m_pVFrame->format != -1 && 
+		//	(m_pVFrame->width != m_hwVFrame->width || m_pVFrame->height != m_hwVFrame->height))
+		//{
+		//	av_frame_free(&m_pVFrame);
+		//	m_pVFrame = av_frame_alloc();
+		//	LOG() << "should never here";
+		//}
+
 		n = av_hwframe_transfer_data(m_pVFrame, m_hwVFrame, 0);
+		if (n < 0)
+		{
+			PrintFFmpegError(n);
+		}
 	}
 
 	return n;

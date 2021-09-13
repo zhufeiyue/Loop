@@ -30,7 +30,12 @@
           "name": "FFmpegPath",
           "value": "D:/BaiduNetdiskDownload/ffmpeg-4.3.2-2021-02-27-full_build-shared",
           "type": "STRING"
-        }
+        },
+		{
+			"name": "OpenALPath",
+			"value": "C:/Program Files (x86)/OpenAL 1.1 SDK",
+			"type": "STRING"
+		}
       ]
     },
     {
@@ -42,7 +47,34 @@
       "cmakeCommandArgs": "",
       "buildCommandArgs": "",
       "ctestCommandArgs": "",
-      "inheritEnvironments": [ "msvc_x64_x64" ]
+      "inheritEnvironments": [ "msvc_x64_x64" ],
+	  "variables": [
+        {
+          "name": "OpenSSLPath",
+          "value": "D:\\pf\\openssl64\\OpenSSL-Win64",
+          "type": "STRING"
+        },
+        {
+          "name": "BoostPath",
+          "value": "D:\\BaiduNetdiskDownload\\boostlib",
+          "type": "STRING"
+        },
+        {
+          "name": "QtPath",
+          "value": "D:\\pf\\qt515\\5.15.2\\msvc2019_64",
+          "type": "STRING"
+        },
+        {
+          "name": "FFmpegPath",
+          "value": "D:/BaiduNetdiskDownload/ffmpeg-4.3.2-2021-02-27-full_build-shared",
+          "type": "STRING"
+        },
+		{
+			"name": "OpenALPath",
+			"value": "C:/Program Files (x86)/OpenAL 1.1 SDK",
+			"type": "STRING"
+		}
+      ]
     }
   ]
 }

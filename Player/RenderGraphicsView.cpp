@@ -43,7 +43,10 @@ QRectF VideoItem::boundingRect() const
 
 void VideoItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget*)
 {
-	painter->drawImage(m_rectDraw, m_image);
+	//painter->drawImage(m_rectDraw, m_image);
+	painter->drawImage(m_rectDraw, m_image, 
+		QRectF(0, 0, m_image.width(), m_image.height()),
+		Qt::AutoColor | Qt::ThresholdDither |Qt::NoOpaqueDetection);
 }
 
 
