@@ -36,7 +36,9 @@ public:
 
 	AVSampleFormat GetSampleFormat();
 	int GetSampleRate();
+	int GetSampleChannel();
 	int64_t GetChannelLayout();
+	int64_t GetDuration();
 
 	std::map<std::string, std::string> Parse_extradata(int);
 

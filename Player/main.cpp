@@ -14,11 +14,13 @@
 #include <common/Dic.h>
 #include <common/Log.h>
 
+#include "RenderOpenAL.h"
 
 int main(int argc, char* argv[])
 {
 	QApplication app(argc, argv);
 
+	testPlayWav();
 	return 0;
 	QWidget w;
 	auto pScene = new QGraphicsScene(&w);
@@ -46,11 +48,17 @@ int main(int argc, char* argv[])
 
 	Player player;
 	player.InitVideoRender(&w);
+	player.InitAudioRender(nullptr);
+
 	//player.StartPlay("D:/迅雷下载/阳光电影www.ygdy8.com.神奇女侠1984.2020.BD.1080P.国英双语双字.mkv");
-	player.StartPlay("D:/迅雷下载/1/2222/45.mp4");
-	//player.StartPlay("D:/迅雷云盘/Veep (2012) - S07E07 - Veep (1080p BluRay x265 Silence).mkv");
+	player.StartPlay("D:/迅雷云盘/Veep (2012) - S07E07 - Veep (1080p BluRay x265 Silence).mkv");
 	//player.StartPlay("D:/迅雷云盘/楚门的世界.1080p.国英双语.BD中英双字/楚门的世界.1080p.国英双语.BD中英双字[66影视www.66Ys.Co].mp4");
+	//player.StartPlay("D:/迅雷下载/1/34.mp4");
 
+	auto result = app.exec();
 
-	return app.exec();
+	player.DestroyVideoRender();
+	player.DestroyAudioRender();
+
+	return result;
 }

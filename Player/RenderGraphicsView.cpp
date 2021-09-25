@@ -88,12 +88,18 @@ VideoRenderGraphicsView::~VideoRenderGraphicsView()
 int VideoRenderGraphicsView::ConfigureRender(RenderInfo mediaInfo)
 {
 	auto type = mediaInfo.find("type")->second.to<std::string>();
+	auto canvasWidth = m_pRenderView->width();
+	auto canvasHeight = m_pRenderView->height();
 
-	int canvasWidth = m_pRenderView->width();
-	int canvasHeight = m_pRenderView->height();
 
 	if (type == "init")
 	{
+		auto iter = mediaInfo.find("hasVideo");
+		if (iter == mediaInfo.end() || !iter->second.to<int>())
+		{
+			return CodeNo;
+		}
+
 		auto width = mediaInfo.find("width")->second.to<int>();
 		auto height = mediaInfo.find("height")->second.to<int>();
 		auto rate = mediaInfo.find("videorate")->second.to<double>(1.0);
@@ -108,7 +114,8 @@ int VideoRenderGraphicsView::ConfigureRender(RenderInfo mediaInfo)
 			return CodeNo;
 		}
 
-		m_pVideoItem->SetCanvasSize(canvasWidth, canvasHeight);
+		if (m_pVideoItem)
+			m_pVideoItem->SetCanvasSize(canvasWidth, canvasHeight);
 		return CodeOK;
 	}
 	else

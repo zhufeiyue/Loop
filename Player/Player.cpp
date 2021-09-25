@@ -1,10 +1,12 @@
 #include "Player.h"
 #include "DecodeFile.h"
 #include "RenderGraphicsView.h"
+#include "RenderOpenAL.h"
 
-static Nursery<IDecoder::MediaInfo>& GetNursery()
+template<typename T>
+static Nursery<T>& GetNursery()
 {
-	static Nursery<IDecoder::MediaInfo> ins;
+	static Nursery<T> ins;
 	return ins;
 }
 
@@ -35,7 +37,7 @@ int Player::StartPlay(std::string strMediaPath)
 	m_pDecoder->InitDecoder(strMediaPath, [=](IDecoder::MediaInfo mediaInfo)
 		{
 			auto value = std::shared_ptr<IDecoder::MediaInfo>(new IDecoder::MediaInfo(std::move(mediaInfo)));
-			auto key = GetNursery().Put(value);
+			auto key = GetNursery<IDecoder::MediaInfo>().Put(value);
 
 			emit this->sigDecoderInited(key);
 			return CodeOK;
@@ -64,14 +66,14 @@ void Player::OnDecoderInited(quint64 key)
 	QObject::disconnect(this, SIGNAL(sigDecoderInited(quint64)),
 		this, SLOT(OnDecoderInited(quint64)));
 
-	auto value = GetNursery().Get(key);
+	auto value = GetNursery<IDecoder::MediaInfo>().Get(key);
 	if (!value)
 	{
 		return;
 	}
 
-	auto iterResult = value->find("result");
-	if (iterResult == value->end() || iterResult->second.to<int>() != CodeOK)
+	auto iter = value->find("result");
+	if (iter == value->end() || iter->second.to<int>() != CodeOK)
 	{
 		LOG() << "init decode failed";
 		return;
@@ -80,17 +82,30 @@ void Player::OnDecoderInited(quint64 key)
 	value->erase("result");
 	value->erase("message");
 	value->insert("type", "init");
-	if (CodeOK != m_pVideoRender->ConfigureRender(*value)) 
+
+	iter = value->find("hasVideo");
+	if (iter != value->end() && 
+		iter->second.to<int>() &&
+		CodeOK != m_pVideoRender->ConfigureRender(*value))
 	{
-		LOG() << "ConfigureRender failed";
+		LOG() << "video ConfigureRender failed";
+		return;
+	}
+
+	iter = value->find("hasAudio");
+	if (iter != value->end() &&
+		iter->second.to<int>() &&
+		CodeOK != m_pAudioRender->ConfigureRender(*value))
+	{
+		LOG() << "audio ConfigureRender failed";
 		return;
 	}
 
 	int timerInterval = 40;
-	auto iterVideoRate = value->find("videorate");
-	if (iterVideoRate != value->end())
+	iter = value->find("videorate");
+	if (iter != value->end())
 	{
-		double videoRate = iterVideoRate->second.to<double>();
+		double videoRate = iter->second.to<double>();
 		if (videoRate > 0) 
 		{
 			timerInterval = static_cast<int> (std::round(1000.0 / videoRate));
@@ -119,7 +134,8 @@ void Player::OnTimeout()
 	}
 
 	FrameHolderPtr frame;
-	int n = m_pDecoder->GetNextFrame(frame, 0);
+	int n = 0;
+	n = m_pDecoder->GetNextFrame(frame, 0);
 	if (n == CodeOK)
 	{
 		if (m_pVideoRender)
@@ -138,8 +154,9 @@ void Player::OnTimeout()
 	}
 }
 
-int Player::InitVideoRender(QWidget* pWidget)
+int Player::InitVideoRender(void* pData)
 {
+	auto pWidget = (QWidget*)pData;
 	if (!pWidget)
 	{
 		return CodeNo;
@@ -157,5 +174,24 @@ int Player::InitVideoRender(QWidget* pWidget)
 
 int Player::DestroyVideoRender()
 {
+	if (m_pVideoRender)
+	{
+		m_pVideoRender.reset();
+	}
+	return CodeOK;
+}
+
+int Player::InitAudioRender(void*)
+{
+	m_pAudioRender.reset(new RenderOpenAL());
+	return CodeOK;
+}
+
+int Player::DestroyAudioRender()
+{
+	if (m_pAudioRender)
+	{
+		m_pAudioRender.reset();
+	}
 	return CodeOK;
 }

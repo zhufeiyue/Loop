@@ -1,7 +1,5 @@
 ﻿cmake_minimum_required (VERSION 3.10)
 
-message(${CMAKE_BUILD_TYPE})
-
 # CMAKE_PREFIX_PATH default is empty
 set(CMAKE_PREFIX_PATH ${QtPath})
 find_package(Qt5 COMPONENTS Core Gui Widgets Network WebSockets REQUIRED)
@@ -26,7 +24,7 @@ endif(CMAKE_CL_64)
 set(PlayerSource main.cpp)
 list(APPEND PlayerSource FFmpegDemuxer.cpp FFmpegDemuxer.h FFmpegMuxer.cpp FFmpegMuxer.h)
 list(APPEND PlayerSource Player.h Player.cpp DecodeFile.h DecodeFile.cpp IDecoder.cpp IRender.h)
-list(APPEND RenderOpenAL.h RenderOpenAL.cpp)
+list(APPEND PlayerSource RenderOpenAL.h RenderOpenAL.cpp WavDemuxer.h WavDemuxer.cpp)
 
 #aux_source_directory(./view MainQtSource)
 set(PlayerQtSource RenderGraphicsView.cpp RenderGraphicsView.h )

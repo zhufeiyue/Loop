@@ -334,6 +334,17 @@ int FFmpegDemuxer::GetSampleRate()
 	return 0;
 }
 
+int FFmpegDemuxer::GetSampleChannel()
+{
+	if (m_iAudioIndex >= 0)
+	{
+		auto pStream = m_pFormatContext->streams[m_iAudioIndex];
+		return pStream->codecpar->channels;
+	}
+
+	return 0;
+}
+
 int64_t FFmpegDemuxer::GetChannelLayout()
 {
 	if (m_iAudioIndex >= 0)
@@ -343,6 +354,18 @@ int64_t FFmpegDemuxer::GetChannelLayout()
 	}
 
 	return 0;
+}
+
+int64_t FFmpegDemuxer::GetDuration()
+{
+	if (m_pFormatContext)
+	{
+		return m_pFormatContext->duration / AV_TIME_BASE;
+	}
+	else
+	{
+		return 0;
+	}
 }
 
 static int32_t Char2ToLittleInt(const uint8_t* temp)

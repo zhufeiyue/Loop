@@ -19,15 +19,17 @@ public:
 	int GetNextFrame(FrameHolderPtr&, int) override;
 
 protected:
+	int GetNextVideoFrmae(FrameHolderPtr&);
 	int DecodeVideoFrame();
 
 private:
 	std::thread m_threadWork;
 	std::unique_ptr<Eventloop> m_pEventLoop;
 	std::unique_ptr<FFmpegDecode> m_pDecoder;
+
 	std::atomic<int> m_iCachedFrameCount = 0;
-	bool m_bDecoding = false;
-	bool m_bDecodeError = false;
+	bool m_bVideoDecoding = false;
+	bool m_bVideoDecodeError = false;
 	FramePool m_cachedVideoFrame;
 	FramePool m_blankVideoFrame;
 };

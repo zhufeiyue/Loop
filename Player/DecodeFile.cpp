@@ -14,7 +14,7 @@ DecodeFile::DecodeFile()
 
 DecodeFile::~DecodeFile()
 {
-	m_bDecodeError = true;
+	m_bVideoDecodeError = true;
 
 	if (m_pEventLoop)
 	{
@@ -69,6 +69,7 @@ int DecodeFile::InitDecoder(std::string strMediaPath, IDecoder::Callback initCal
 
 			if (m_pDecoder->ContainVideo())
 			{
+				mediaInfo.insert("hasVideo", true);
 				mediaInfo.insert("width", m_pDecoder->GetFrameSize().first);
 				mediaInfo.insert("height", m_pDecoder->GetFrameSize().second);
 				mediaInfo.insert("videorate", m_pDecoder->GetFrameRate());
@@ -83,9 +84,15 @@ int DecodeFile::InitDecoder(std::string strMediaPath, IDecoder::Callback initCal
 
 			if (m_pDecoder->ContainAudio())
 			{
+				mediaInfo.insert("hasAudio", true);
 				mediaInfo.insert("audioformat", (int)m_pDecoder->GetSampleFormat());
 				mediaInfo.insert("audiorate", m_pDecoder->GetSampleRate());
+				mediaInfo.insert("audiochannel", m_pDecoder->GetSampleChannel());
+				mediaInfo.insert("audiochannelLayout", m_pDecoder->GetChannelLayout());
 			}
+
+			mediaInfo.insert("duration", m_pDecoder->GetDuration());
+
 			result = CodeOK;
 			strMsg = "OK";
 
@@ -141,25 +148,37 @@ int DecodeFile::Seek(int64_t)
 
 int DecodeFile::GetNextFrame(FrameHolderPtr& frameInfo, int type)
 {
-	if (m_bDecodeError)
+	if (m_bVideoDecodeError)
 	{
 		return CodeNo;
 	}
 
+	if (type == 0)
+	{
+		return GetNextVideoFrmae(frameInfo);
+	}
+	else if (type == 1)
+	{
+
+	}
+}
+
+int DecodeFile::GetNextVideoFrmae(FrameHolderPtr& frameInfo)
+{
 	auto pFrame = m_cachedVideoFrame.Alloc();
 	if (!pFrame || m_iCachedFrameCount < 2)
 	{
-		if (m_pEventLoop && m_pEventLoop->IsRunning() && !m_bDecoding)
+		if (m_pEventLoop && m_pEventLoop->IsRunning() && !m_bVideoDecoding)
 		{
-			m_pEventLoop->AsioQueue().PushEvent([this]() 
+			m_pEventLoop->AsioQueue().PushEvent([this]()
 				{
-					m_bDecoding = true;
-					while (m_iCachedFrameCount < 5 && !m_bDecodeError)
+					m_bVideoDecoding = true;
+					while (m_iCachedFrameCount < 5 && m_bVideoDecoding)
 					{
 						if (DecodeVideoFrame() != CodeOK)
 						{
 							// todo 获得出错原因，end of stream ???
-							m_bDecodeError = true;
+							m_bVideoDecodeError = true;
 							break;
 						}
 						else
@@ -167,16 +186,16 @@ int DecodeFile::GetNextFrame(FrameHolderPtr& frameInfo, int type)
 							m_iCachedFrameCount += 1;
 						}
 					}
-					m_bDecoding = false;
+					m_bVideoDecoding = false;
 					return CodeOK;
 				});
 		}
 	}
-	
-	if(pFrame)
+
+	if (pFrame)
 	{
 		m_iCachedFrameCount -= 1;
-		frameInfo = FrameHolderPtr(pFrame, [this](FrameHolder* pFrameToFree) 
+		frameInfo = FrameHolderPtr(pFrame, [this](FrameHolder* pFrameToFree)
 			{
 				m_blankVideoFrame.Free(pFrameToFree);
 			});

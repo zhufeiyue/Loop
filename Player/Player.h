@@ -26,7 +26,7 @@ public:
 	#ifdef _WIN64
 		key = reinterpret_cast<uint64_t>(pChild.get());
 	#else
-		key = (int64_t)reinterpret_cast<uint32_t>(pChild.get());
+		key = reinterpret_cast<uint32_t>(pChild.get());
 	#endif
 #else
 	#error "not windows plaform"
@@ -71,8 +71,10 @@ public:
 	virtual int StartPlay(std::string);
 	virtual int StopPlay();
 
-	virtual int InitVideoRender(QWidget*);
+	virtual int InitVideoRender(void*);
+	virtual int InitAudioRender(void*);
 	virtual int DestroyVideoRender();
+	virtual int DestroyAudioRender();
 
 signals:
 	void sigDecoderInited(quint64);
@@ -84,6 +86,7 @@ protected slots:
 protected:
 	std::unique_ptr<IDecoder> m_pDecoder;
 	std::unique_ptr<IRender> m_pVideoRender;
+	std::unique_ptr<IRender> m_pAudioRender;
 	
 	QTimer* m_pTimer = nullptr;
 };
