@@ -180,7 +180,7 @@ int VideoRenderGraphicsView::UpdataFrame(FrameHolderPtr data)
 		return CodeInvalidParam;
 	}
 
-	AVFrame* pFrame = data->operator AVFrame * ();
+	AVFrame* pFrame = data->FrameData();
 	if (pFrame->width != m_iWidth ||
 		pFrame->height != m_iHeight ||
 		pFrame->format != m_format)

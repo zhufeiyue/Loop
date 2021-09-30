@@ -22,6 +22,8 @@ protected:
 	int GetNextVideoFrmae(FrameHolderPtr&);
 	int DecodeVideoFrame();
 
+	int GetNextAudioFrame(FrameHolderPtr&);
+
 private:
 	std::thread m_threadWork;
 	std::unique_ptr<Eventloop> m_pEventLoop;

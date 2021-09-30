@@ -8,7 +8,8 @@ struct AVFrame;
 class FrameHolder
 {
 public:
-	explicit FrameHolder(const std::string& type, int arg1, int arg2,int arg3);
+	FrameHolder(const std::string& type, int arg1, int arg2,int arg3);
+	FrameHolder(const std::string& type, int arg1, int arg2, int arg3, int arg4);
 	FrameHolder();
 	~FrameHolder();
 
@@ -30,14 +31,10 @@ public:
 		return *this;
 	}
 
-	operator AVFrame* ()
+	AVFrame* FrameData()
 	{
 		return m_pFrame;
 	}
-
-	int FrameWidth() const;
-	int FrameHeight() const;
-	int FrameFormat() const;
 
 private:
 	AVFrame* m_pFrame = nullptr;
@@ -49,7 +46,7 @@ class FramePool
 {
 public:
 	bool Free(FrameHolder*);
-	FrameHolder* Alloc(const std::string& type, int, int, int);
+	FrameHolder* Alloc(const std::string& type, int, int, int, int);
 	FrameHolder* Alloc();
 
 private:

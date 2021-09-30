@@ -833,6 +833,15 @@ int FFmpegHWDecode::DecodeVideo(AVPacket& packet)
 		//}
 
 		n = av_hwframe_transfer_data(m_pVFrame, m_hwVFrame, 0);
+		//if (m_hwVFrame->pts == AV_NOPTS_VALUE)
+		//{
+		//	m_hwVFrame->pts = av_frame_get_best_effort_timestamp(m_hwVFrame);
+		//}
+
+		m_pVFrame->pts = m_hwVFrame->pts;
+		m_pVFrame->pkt_pts = m_hwVFrame->pkt_pts;
+		m_pVFrame->pkt_dts = m_hwVFrame->pkt_dts;
+
 		if (n < 0)
 		{
 			PrintFFmpegError(n);

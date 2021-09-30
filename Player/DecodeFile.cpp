@@ -159,8 +159,10 @@ int DecodeFile::GetNextFrame(FrameHolderPtr& frameInfo, int type)
 	}
 	else if (type == 1)
 	{
-
+		return GetNextVideoFrmae(frameInfo);
 	}
+
+	return CodeNo;
 }
 
 int DecodeFile::GetNextVideoFrmae(FrameHolderPtr& frameInfo)
@@ -170,9 +172,9 @@ int DecodeFile::GetNextVideoFrmae(FrameHolderPtr& frameInfo)
 	{
 		if (m_pEventLoop && m_pEventLoop->IsRunning() && !m_bVideoDecoding)
 		{
+			m_bVideoDecoding = true;
 			m_pEventLoop->AsioQueue().PushEvent([this]()
 				{
-					m_bVideoDecoding = true;
 					while (m_iCachedFrameCount < 5 && m_bVideoDecoding)
 					{
 						if (DecodeVideoFrame() != CodeOK)
@@ -227,13 +229,16 @@ int DecodeFile::DecodeVideoFrame()
 		return CodeNo;
 	}
 
-	auto pFrame = m_blankVideoFrame.Alloc("video", pDecodedImage->width, pDecodedImage->height, pDecodedImage->format);
+	auto pFrame = m_blankVideoFrame.Alloc("video", 
+		pDecodedImage->width, 
+		pDecodedImage->height, 
+		pDecodedImage->format, 0);
 	if (!pFrame)
 	{
 		return CodeNo;
 	}
 
-	int n = av_frame_copy(*pFrame, pDecodedImage);
+	int n = av_frame_copy(pFrame->FrameData(), pDecodedImage);
 	if (n < 0)
 	{
 		m_blankVideoFrame.Free(pFrame);
@@ -246,5 +251,10 @@ int DecodeFile::DecodeVideoFrame()
 
 	m_cachedVideoFrame.Free(pFrame);
 
+	return CodeOK;
+}
+
+int DecodeFile::GetNextAudioFrame(FrameHolderPtr& frameInfo)
+{
 	return CodeOK;
 }

@@ -40,34 +40,38 @@ FrameHolder::FrameHolder(const std::string& type, int arg1, int arg2, int arg3)
 			throw std::logic_error("av_frame_get_buffer error");
 		}
 	}
-	else if (type == strAudioType)
+	else
 	{
+		throw std::logic_error("fatal error");
+	}
+}
+
+FrameHolder::FrameHolder(const std::string& type, int arg1, int arg2, int arg3, int arg4)
+{
+	if (type == strAudioType)
+	{
+		int channelLayout = arg1;
+		int rate = arg2;
+		int sampleCount = arg3;
+		int format = arg4;
+
+		m_pFrame = av_frame_alloc();
+		m_pFrame->format = (AVSampleFormat)format;
+		m_pFrame->channel_layout = channelLayout;
+		m_pFrame->sample_rate = rate;
+		m_pFrame->nb_samples = sampleCount;
+
+		if (av_frame_get_buffer(m_pFrame, 0) < 0)
+		{
+			av_frame_free(&m_pFrame);
+			throw std::logic_error("av_frame_get_buffer error");
+		}
 	}
 	else
 	{
-		throw 1;
+		throw std::logic_error("fatal error");
 	}
 }
-
-int FrameHolder::FrameWidth() const
-{
-	if (m_pFrame)
-		return m_pFrame->width;
-	return 0;
-}
-int FrameHolder::FrameHeight() const
-{
-	if (m_pFrame)
-		return m_pFrame->height;
-	return 0;
-}
-int FrameHolder::FrameFormat()const
-{
-	if (m_pFrame)
-		return m_pFrame->format;
-	return -1;
-}
-
 
 bool FramePool::Free(FrameHolder* pFrame)
 {
@@ -81,22 +85,39 @@ bool FramePool::Free(FrameHolder* pFrame)
 	return true;
 }
 
-FrameHolder* FramePool::Alloc(const std::string& type, int arg1, int arg2, int arg3)
+FrameHolder* FramePool::Alloc(const std::string& type, int arg1, int arg2, int arg3, int arg4)
 {
-	auto pFrame = m_pool.Get<const std::string&, int, int, int>(type, arg1, arg2, arg3, true);
+	FrameHolder* pFrame = nullptr;
 
-	if (pFrame)
+	if (type == strVideoType)
 	{
-		if (type == strVideoType)
+		pFrame = m_pool.Get<const std::string&, int, int, int>(type, arg1, arg2, arg3, true);
+		if (!pFrame)
 		{
-			if (pFrame->FrameWidth() != arg1 || pFrame->FrameHeight() != arg2 || pFrame->FrameFormat() != arg3)
-			{
-				delete pFrame;
-				pFrame = nullptr;
-			}
+			return nullptr;
 		}
-		else if (type == strAudioType)
+
+		auto ffmpegFrame = pFrame->FrameData();
+		if (ffmpegFrame->width != arg1 || ffmpegFrame->height != arg2 || ffmpegFrame->format != arg3)
 		{
+			delete pFrame;
+			pFrame = nullptr;
+		}
+	}
+	else if (type == strAudioType)
+	{
+		pFrame = m_pool.Get<const std::string&, int, int, int, int>(type, arg1, arg2, arg3, arg4, true);
+		if (!pFrame)
+		{
+			return nullptr;
+		}
+
+		if (pFrame->FrameData()->channel_layout != arg1 
+			|| pFrame->FrameData()->sample_rate != arg2
+			|| pFrame->FrameData()->format != arg4)
+		{
+			delete pFrame;
+			pFrame = nullptr;
 		}
 	}
 
