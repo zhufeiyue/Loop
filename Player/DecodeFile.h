@@ -23,6 +23,7 @@ protected:
 	int DecodeVideoFrame();
 
 	int GetNextAudioFrame(FrameHolderPtr&);
+	int DecodeAudioFrame(int&);
 
 private:
 	std::thread m_threadWork;
@@ -34,4 +35,11 @@ private:
 	bool m_bVideoDecodeError = false;
 	FramePool m_cachedVideoFrame;
 	FramePool m_blankVideoFrame;
+
+	std::atomic<int> m_iCachedSampleCount = 0;
+	bool m_bAudioDecoding = false;
+	bool m_bAudioDecodeError = false;
+	FramePool m_cacheAudioFrame;
+	FramePool m_blankAudioFrame;
+	int m_iAuioRate = 48000;
 };

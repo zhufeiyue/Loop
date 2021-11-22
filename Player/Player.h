@@ -2,6 +2,8 @@
 #include <mutex>
 #include "IRender.h"
 #include "IDecoder.h"
+#include "AVSync.h"
+
 #include <QObject>
 #include <QMetaMethod>
 #include <QWidget>
@@ -87,6 +89,11 @@ protected:
 	std::unique_ptr<IDecoder> m_pDecoder;
 	std::unique_ptr<IRender> m_pVideoRender;
 	std::unique_ptr<IRender> m_pAudioRender;
+	std::unique_ptr<IAVSync> m_pAVSync;
 	
 	QTimer* m_pTimer = nullptr;
+	bool m_bHasAudio = false;
+	bool m_bHasVideo = false;
+
+	AVSyncParam m_syncParam;
 };

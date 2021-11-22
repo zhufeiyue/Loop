@@ -12,7 +12,7 @@ static int InterruptCB(void* para)
 	return 0;
 }
 
-static void PrintFFmpegError(int code)
+void PrintFFmpegError(int code)
 {
 	char buf[64] = { 0 };
 	av_make_error_string(buf, sizeof(buf), code);
@@ -172,7 +172,7 @@ int FFmpegDemuxer::DemuxVideo(AVPacket& got)
 
 		if (packet.stream_index != m_iVideoIndex)
 		{
-			if (packet.stream_index == m_iAudioIndex && false)
+			if (packet.stream_index == m_iAudioIndex)
 			{
 				m_aPackets.push(packet);
 			}
@@ -368,6 +368,34 @@ int64_t FFmpegDemuxer::GetDuration()
 	}
 }
 
+AVRational FFmpegDemuxer::GetVideoTimebase(int)
+{
+	AVRational tb;
+	tb.den = 1;
+	tb.num = 0;
+
+	if (m_iVideoIndex >= 0)
+	{
+		tb = m_pFormatContext->streams[m_iVideoIndex]->time_base;
+	}
+
+	return tb;
+}
+
+AVRational FFmpegDemuxer::GetAudioTimebase(int)
+{
+	AVRational tb;
+	tb.den = 1;
+	tb.num = 0;
+
+	if (m_iAudioIndex >= 0)
+	{
+		tb = m_pFormatContext->streams[m_iAudioIndex]->time_base;
+	}
+
+	return tb;
+}
+
 static int32_t Char2ToLittleInt(const uint8_t* temp)
 {
 	const unsigned char* p = (const uint8_t*)temp;
@@ -542,6 +570,11 @@ int FFmpegDecode::DecodeVideo(AVPacket& packet)
 		if (n < 0)
 		{
 			PrintFFmpegError(n);
+			// todo is this ok?
+			if (n == AVERROR_INVALIDDATA)
+			{
+				n = AVERROR(EAGAIN);
+			}
 			return n;
 		}
 	}
@@ -571,6 +604,13 @@ int FFmpegDecode::DecodeAudio(AVPacket& packet)
 		if (n < 0)
 		{
 			PrintFFmpegError(n);
+
+			// todo is this ok?
+			if (n == AVERROR_INVALIDDATA)
+			{
+				n = AVERROR(EAGAIN);
+			}
+
 			return n;
 		}
 	}
@@ -813,6 +853,12 @@ int FFmpegHWDecode::DecodeVideo(AVPacket& packet)
 		if (n < 0)
 		{
 			PrintFFmpegError(n);
+
+			// todo is this ok? ignore this two errors
+			if (n == AVERROR(EPERM) || n == AVERROR_INVALIDDATA)
+			{
+				n = AVERROR(EAGAIN);
+			}
 			return n;
 		}
 	}
@@ -833,14 +879,14 @@ int FFmpegHWDecode::DecodeVideo(AVPacket& packet)
 		//}
 
 		n = av_hwframe_transfer_data(m_pVFrame, m_hwVFrame, 0);
-		//if (m_hwVFrame->pts == AV_NOPTS_VALUE)
-		//{
-		//	m_hwVFrame->pts = av_frame_get_best_effort_timestamp(m_hwVFrame);
-		//}
+		//AV_NOPTS_VALUE
 
 		m_pVFrame->pts = m_hwVFrame->pts;
 		m_pVFrame->pkt_pts = m_hwVFrame->pkt_pts;
 		m_pVFrame->pkt_dts = m_hwVFrame->pkt_dts;
+		m_pVFrame->key_frame = m_hwVFrame->key_frame;
+		m_pVFrame->pict_type = m_hwVFrame->pict_type;
+		m_pVFrame->sample_aspect_ratio = m_hwVFrame->sample_aspect_ratio;
 
 		if (n < 0)
 		{
@@ -981,6 +1027,9 @@ int FFmpegAudioConvert::Configure(int srcSampleRate, uint64_t srcLayout, AVSampl
 
 int FFmpegAudioConvert::Convert(const uint8_t** ppInData, int incount)
 {
+	/*
+	* 利用swr_convert的性质，转换、缓存，确切数量的音频帧
+	*/
 	if (!m_pASwr)
 	{
 		return -1;

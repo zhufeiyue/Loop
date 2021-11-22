@@ -25,7 +25,7 @@ public:
 			{
 				return std::get<T>(data);
 			}
-			catch (std::bad_variant_access const &)
+			catch (std::bad_variant_access const&)
 			{
 				return std::move(defaultValue);
 			}
@@ -62,6 +62,26 @@ public:
 			iter = m_data.erase(iter);
 		}
 		return iter;
+	}
+
+	bool contain(const std::string& key) const
+	{
+		return find(key) != m_data.end();
+	}
+
+	template<typename T>
+	bool contain_key_value(const std::string& key, const T& value)const
+	{
+		auto iter = find(key);
+		if (iter != m_data.end())
+		{
+			if (iter->second.to<T>() == value)
+			{
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 private:

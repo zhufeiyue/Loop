@@ -46,14 +46,14 @@ FrameHolder::FrameHolder(const std::string& type, int arg1, int arg2, int arg3)
 	}
 }
 
-FrameHolder::FrameHolder(const std::string& type, int arg1, int arg2, int arg3, int arg4)
+FrameHolder::FrameHolder(const std::string& type, int arg1, int arg2, int arg3, int64_t arg4)
 {
 	if (type == strAudioType)
 	{
-		int channelLayout = arg1;
+		int format = arg1;
 		int rate = arg2;
 		int sampleCount = arg3;
-		int format = arg4;
+		int channelLayout = arg4;
 
 		m_pFrame = av_frame_alloc();
 		m_pFrame->format = (AVSampleFormat)format;
@@ -85,7 +85,7 @@ bool FramePool::Free(FrameHolder* pFrame)
 	return true;
 }
 
-FrameHolder* FramePool::Alloc(const std::string& type, int arg1, int arg2, int arg3, int arg4)
+FrameHolder* FramePool::Alloc(const std::string& type, int arg1, int arg2, int arg3, int64_t arg4)
 {
 	FrameHolder* pFrame = nullptr;
 
@@ -106,15 +106,16 @@ FrameHolder* FramePool::Alloc(const std::string& type, int arg1, int arg2, int a
 	}
 	else if (type == strAudioType)
 	{
-		pFrame = m_pool.Get<const std::string&, int, int, int, int>(type, arg1, arg2, arg3, arg4, true);
+		pFrame = m_pool.Get<const std::string&, int, int, int, int64_t>(type, arg1, arg2, arg3, arg4, true);
 		if (!pFrame)
 		{
 			return nullptr;
 		}
 
-		if (pFrame->FrameData()->channel_layout != arg1 
+		if (pFrame->FrameData()->channel_layout != (uint64_t)arg4 
 			|| pFrame->FrameData()->sample_rate != arg2
-			|| pFrame->FrameData()->format != arg4)
+			|| pFrame->FrameData()->nb_samples != arg3
+			|| pFrame->FrameData()->format != arg1)
 		{
 			delete pFrame;
 			pFrame = nullptr;

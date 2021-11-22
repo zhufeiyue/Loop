@@ -94,16 +94,16 @@ int VideoRenderGraphicsView::ConfigureRender(RenderInfo mediaInfo)
 
 	if (type == "init")
 	{
-		auto iter = mediaInfo.find("hasVideo");
-		if (iter == mediaInfo.end() || !iter->second.to<int>())
+		if (!mediaInfo.contain_key_value("hasVideo", 1))
 		{
 			return CodeNo;
 		}
 
 		auto width = mediaInfo.find("width")->second.to<int>();
 		auto height = mediaInfo.find("height")->second.to<int>();
-		auto rate = mediaInfo.find("videorate")->second.to<double>(1.0);
-		auto format = mediaInfo.find("videoformat")->second.to<int>(-1);
+		auto rate = mediaInfo.find("videoRate")->second.to<double>(1.0);
+		auto format = mediaInfo.find("videoFormat")->second.to<int>(-1);
+		
 		return ConfigureRender(width, height, (AVPixelFormat)format, canvasWidth, canvasHeight);
 	}
 	else if (type == "resize")
@@ -212,8 +212,35 @@ int VideoRenderGraphicsView::UpdataFrame(FrameHolderPtr data)
 		memcpy(m_pVideoItem->ImageData(), pFrame->data[0], pFrame->height * pFrame->linesize[0]);
 	}
 
+	m_iCurrentFramePTS = data->UniformPTS();
 	m_pVideoItem->update();
 
+	return CodeOK;
+}
+
+int VideoRenderGraphicsView::Start()
+{
+	return CodeOK;
+}
+
+int VideoRenderGraphicsView::Pause()
+{
+	return CodeOK;
+}
+
+int VideoRenderGraphicsView::Stop()
+{
+	return CodeOK;
+}
+
+int VideoRenderGraphicsView::Seek(int64_t)
+{
+	return CodeOK;
+}
+
+int VideoRenderGraphicsView::GetRenderTime(int64_t& t)
+{
+	t = m_iCurrentFramePTS;
 	return CodeOK;
 }
 

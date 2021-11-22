@@ -48,11 +48,30 @@ int Player::StartPlay(std::string strMediaPath)
 
 int Player::StopPlay()
 {
+	if (m_pTimer)
+	{
+		if (m_pTimer->isActive())
+		{
+			m_pTimer->blockSignals(true);
+			m_pTimer->stop();
+		}
+		m_pTimer->deleteLater();
+		m_pTimer = nullptr;
+	}
+
+	if (m_pAudioRender)
+	{
+		m_pAudioRender->Stop();
+	}
+	if (m_pVideoRender)
+	{
+		m_pVideoRender->Stop();
+	}
+
 	if (!m_pDecoder)
 	{
 		return CodeNo;
 	}
-
 	m_pDecoder->DestroyDecoder([=](IDecoder::MediaInfo mediaInfo) 
 		{
 			return CodeOK;
@@ -84,25 +103,30 @@ void Player::OnDecoderInited(quint64 key)
 	value->insert("type", "init");
 
 	iter = value->find("hasVideo");
-	if (iter != value->end() && 
-		iter->second.to<int>() &&
-		CodeOK != m_pVideoRender->ConfigureRender(*value))
+	if (iter != value->end())
 	{
-		LOG() << "video ConfigureRender failed";
-		return;
+		m_bHasVideo = iter->second.to<int>();
+		if (m_bHasVideo && CodeOK != m_pVideoRender->ConfigureRender(*value))
+		{
+			LOG() << "video ConfigureRender failed";
+			return;
+		}
 	}
 
 	iter = value->find("hasAudio");
-	if (iter != value->end() &&
-		iter->second.to<int>() &&
-		CodeOK != m_pAudioRender->ConfigureRender(*value))
+	if (iter != value->end())
 	{
-		LOG() << "audio ConfigureRender failed";
-		return;
+		m_bHasAudio = iter->second.to<int>();
+		if (m_bHasAudio && CodeOK != m_pAudioRender->ConfigureRender(*value))
+		{
+			LOG() << "audio ConfigureRender failed";
+			return;
+		}
 	}
 
+	// start play timer
 	int timerInterval = 40;
-	iter = value->find("videorate");
+	iter = value->find("videoRate");
 	if (iter != value->end())
 	{
 		double videoRate = iter->second.to<double>();
@@ -124,32 +148,41 @@ void Player::OnDecoderInited(quint64 key)
 	}
 	m_pTimer->setInterval(timerInterval);
 	m_pTimer->start();
+
+
+	// create av sync
+	if (m_bHasVideo && !m_bHasAudio)
+	{
+		m_pAVSync.reset(new SyncVideo());
+	}
+	else if (!m_bHasVideo && m_bHasAudio)
+	{
+		m_pAVSync.reset(new SyncAudio());
+	}
+	else if (m_bHasVideo && m_bHasAudio)
+	{
+		//m_pAVSync.reset(new SyncVideo());
+		//m_pAVSync.reset(new SyncAudio());
+		m_pAVSync.reset(new SyncAV());
+	}
+	else
+	{
+		return;
+	}
+	m_pAVSync->SetUpdateInterval(timerInterval);
+	m_pAVSync->SetMediaInfo(*value);
+
+	m_syncParam.pDecoder = m_pDecoder.get();
+	m_syncParam.pVideoRender = m_pVideoRender.get();
+	m_syncParam.pAudioRender = m_pAudioRender.get();
 }
 
 void Player::OnTimeout()
 {
-	if (!m_pDecoder || !m_pVideoRender)
-	{
-		return;
-	}
+	m_syncParam.now = std::chrono::steady_clock::now();
 
-	FrameHolderPtr frame;
-	int n = 0;
-	n = m_pDecoder->GetNextFrame(frame, 0);
-	if (n == CodeOK)
+	if (CodeOK != m_pAVSync->Update(&m_syncParam))
 	{
-		if (m_pVideoRender)
-		{
-			m_pVideoRender->UpdataFrame(std::move(frame));
-		}
-	}
-	else if (n == CodeAgain)
-	{
-		LOG() << "no cached frame";
-	}
-	else
-	{
-		LOG() << "play stop";
 		m_pTimer->stop();
 	}
 }

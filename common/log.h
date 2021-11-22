@@ -28,5 +28,6 @@ enum ErrorCode
 	CodeInvalidParam = -2,
 	CodeNo = -1,
 	CodeOK = 0,
-	CodeAgain = 1
+	CodeAgain = 1,
+	CodeRejection
 };

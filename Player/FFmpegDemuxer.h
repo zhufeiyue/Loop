@@ -4,6 +4,7 @@ extern "C"
 {
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
+#include <libavcodec/bsf.h>
 #include <libswscale/swscale.h>
 #include <libswresample/swresample.h>
 #include <libavutil/avstring.h>
@@ -16,6 +17,8 @@ extern "C"
 #include <string>
 #include <queue>
 #include <map>
+
+void PrintFFmpegError(int code);
 
 class FFmpegDemuxer
 {
@@ -39,6 +42,9 @@ public:
 	int GetSampleChannel();
 	int64_t GetChannelLayout();
 	int64_t GetDuration();
+
+	AVRational GetVideoTimebase(int);
+	AVRational GetAudioTimebase(int);
 
 	std::map<std::string, std::string> Parse_extradata(int);
 
@@ -77,7 +83,7 @@ public:
 
 	AVFrame* GetVFrame() { return m_pVFrame; }
 	AVFrame* GetAFrame() { return m_pAFrame; }
-	bool IsSupportHW() { return false; }
+	virtual bool IsSupportHW() { return false; }
 protected:
 	AVCodecContext* m_pVCodecContext = nullptr;
 	AVCodecContext* m_pACodecContext = nullptr;
@@ -120,7 +126,7 @@ public:
 		return m_pFrame;
 	}
 
-private:
+protected:
 	int m_iSrcW = 0;
 	int m_iSrcH = 0;
 	SwsContext* m_pVSws = NULL;
@@ -142,8 +148,7 @@ public:
 		return m_pFrame;
 	}
 
-private:
-
+protected:
 	SwrContext* m_pASwr = NULL;
 	AVFrame* m_pFrame = NULL;
 };

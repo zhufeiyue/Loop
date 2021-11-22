@@ -63,19 +63,26 @@ public:
 	int ConfigureRender(RenderInfo) override;
 	int UpdataFrame(FrameHolderPtr data) override;
 
+	int Start() override;
+	int Pause() override;
+	int Stop() override;
+	int Seek(int64_t) override;
+	int GetRenderTime(int64_t&) override;
+
 protected:
 	int ConfigureRender(int, int, AVPixelFormat, int, int);
 
 protected:
 	QGraphicsView* m_pRenderView = nullptr;
-	VideoItem* m_pVideoItem = nullptr;
-	QObject* m_pDetectResize = nullptr;
+	VideoItem*     m_pVideoItem  = nullptr;
+	QObject*       m_pDetectResize = nullptr;
 
-	int m_iWidth = 0;
+	int m_iWidth  = 0;
 	int m_iHeight = 0;
-	double m_dRate = 0;
 	AVPixelFormat m_format = AV_PIX_FMT_NONE;
 	std::unique_ptr<FFmpegImageScale> m_pImageConvert;
+
+	int64_t m_iCurrentFramePTS = 0;
 };
 
 class GraphicsViewEventFilter : public QObject
@@ -87,6 +94,5 @@ public:
 
 private:
 	VideoRenderGraphicsView* m_pRender = nullptr;
-	QGraphicsView* m_pCanvas = nullptr;
-
+	QGraphicsView*           m_pCanvas = nullptr;
 };

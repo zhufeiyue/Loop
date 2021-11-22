@@ -3,6 +3,7 @@
 #include <common/EventLoop.h>
 #include "FFmpegDemuxer.h"
 
+
 DecodeFile::DecodeFile()
 {
 	m_pEventLoop.reset(new Eventloop());
@@ -53,6 +54,8 @@ int DecodeFile::InitDecoder(std::string strMediaPath, IDecoder::Callback initCal
 			}
 
 			m_pDecoder.reset(new FFmpegHWDecode(strMediaPath));
+			//m_pDecoder.reset(new FFmpegDecode(strMediaPath));
+
 			if (!m_pDecoder->ContainVideo() && !m_pDecoder->ContainAudio())
 			{
 				strMsg = "no media found for " + strMediaPath;
@@ -69,26 +72,35 @@ int DecodeFile::InitDecoder(std::string strMediaPath, IDecoder::Callback initCal
 
 			if (m_pDecoder->ContainVideo())
 			{
+				auto videoTimebase = m_pDecoder->GetVideoTimebase(0);
+
 				mediaInfo.insert("hasVideo", true);
+				mediaInfo.insert("videoTimebaseNum", videoTimebase.num);
+				mediaInfo.insert("videoTimebaseDen", videoTimebase.den);
 				mediaInfo.insert("width", m_pDecoder->GetFrameSize().first);
 				mediaInfo.insert("height", m_pDecoder->GetFrameSize().second);
-				mediaInfo.insert("videorate", m_pDecoder->GetFrameRate());
+				mediaInfo.insert("videoRate", m_pDecoder->GetFrameRate());
 				AVPixelFormat format = m_pDecoder->GetFrameFormat();
 				if (m_pDecoder->IsSupportHW())
 				{
 					// todo 硬解出来的图像都是NV12???
 					format = AV_PIX_FMT_NV12;
 				}
-				mediaInfo.insert("videoformat", (int)format);
+				mediaInfo.insert("videoFormat", (int)format);
 			}
 
 			if (m_pDecoder->ContainAudio())
 			{
+				m_iAuioRate = m_pDecoder->GetSampleRate();
+				auto audioTimebase = m_pDecoder->GetAudioTimebase(0);
+
 				mediaInfo.insert("hasAudio", true);
-				mediaInfo.insert("audioformat", (int)m_pDecoder->GetSampleFormat());
-				mediaInfo.insert("audiorate", m_pDecoder->GetSampleRate());
-				mediaInfo.insert("audiochannel", m_pDecoder->GetSampleChannel());
-				mediaInfo.insert("audiochannelLayout", m_pDecoder->GetChannelLayout());
+				mediaInfo.insert("audioTimebaseNum", audioTimebase.num);
+				mediaInfo.insert("audioTimebaseDen", audioTimebase.den);
+				mediaInfo.insert("audioFormat", (int)m_pDecoder->GetSampleFormat());
+				mediaInfo.insert("audioRate", m_iAuioRate);
+				mediaInfo.insert("audioChannel", m_pDecoder->GetSampleChannel());
+				mediaInfo.insert("audioChannelLayout", m_pDecoder->GetChannelLayout());
 			}
 
 			mediaInfo.insert("duration", m_pDecoder->GetDuration());
@@ -148,7 +160,7 @@ int DecodeFile::Seek(int64_t)
 
 int DecodeFile::GetNextFrame(FrameHolderPtr& frameInfo, int type)
 {
-	if (m_bVideoDecodeError)
+	if (m_bVideoDecodeError || m_bAudioDecodeError)
 	{
 		return CodeNo;
 	}
@@ -159,7 +171,7 @@ int DecodeFile::GetNextFrame(FrameHolderPtr& frameInfo, int type)
 	}
 	else if (type == 1)
 	{
-		return GetNextVideoFrmae(frameInfo);
+		return GetNextAudioFrame(frameInfo);
 	}
 
 	return CodeNo;
@@ -168,26 +180,26 @@ int DecodeFile::GetNextFrame(FrameHolderPtr& frameInfo, int type)
 int DecodeFile::GetNextVideoFrmae(FrameHolderPtr& frameInfo)
 {
 	auto pFrame = m_cachedVideoFrame.Alloc();
-	if (!pFrame || m_iCachedFrameCount < 2)
+	if (!pFrame || m_iCachedFrameCount < 3)
 	{
 		if (m_pEventLoop && m_pEventLoop->IsRunning() && !m_bVideoDecoding)
 		{
 			m_bVideoDecoding = true;
 			m_pEventLoop->AsioQueue().PushEvent([this]()
 				{
-					while (m_iCachedFrameCount < 5 && m_bVideoDecoding)
+					while (m_iCachedFrameCount < 5 && m_bVideoDecoding && !m_bVideoDecodeError)
 					{
 						if (DecodeVideoFrame() != CodeOK)
 						{
 							// todo 获得出错原因，end of stream ???
 							m_bVideoDecodeError = true;
-							break;
 						}
 						else
 						{
 							m_iCachedFrameCount += 1;
 						}
 					}
+
 					m_bVideoDecoding = false;
 					return CodeOK;
 				});
@@ -243,18 +255,111 @@ int DecodeFile::DecodeVideoFrame()
 	{
 		m_blankVideoFrame.Free(pFrame);
 
-		char buf[64] = { 0 };
-		av_make_error_string(buf, sizeof(buf), n);
-		LOG() << "av_frame_copy " << buf << " " << n;
+		LOG() << "av_frame_copy:";
+		PrintFFmpegError(n);
 		return CodeNo;
 	}
+	n = av_frame_copy_props(pFrame->FrameData(), pDecodedImage);
 
-	m_cachedVideoFrame.Free(pFrame);
+	if (!m_cachedVideoFrame.Free(pFrame))
+	{
+		LOG() << __FUNCTION__ << " " << __LINE__ << " " << "cache decoded frame error";
+		return CodeNo;
+	}
 
 	return CodeOK;
 }
 
 int DecodeFile::GetNextAudioFrame(FrameHolderPtr& frameInfo)
 {
+	auto pFrame = m_cacheAudioFrame.Alloc();
+	if (!pFrame || m_iCachedSampleCount < m_iAuioRate / 4)
+	{
+		if (m_pEventLoop && m_pEventLoop->IsRunning() && !m_bAudioDecoding)
+		{
+			m_bAudioDecoding = true;
+			m_pEventLoop->AsioQueue().PushEvent([this]()
+				{
+					while (m_iCachedSampleCount < m_iAuioRate/2 && m_bAudioDecoding && !m_bAudioDecodeError)
+					{
+						int sampleCount = 0;
+						if (DecodeAudioFrame(sampleCount) != CodeOK)
+						{
+							m_bAudioDecodeError = true;
+						}
+						else
+						{
+							m_iCachedSampleCount += sampleCount;
+						}
+					}
+
+					m_bAudioDecoding = false;
+					return CodeOK;
+				});
+		}
+	}
+
+	if (pFrame)
+	{
+		m_iCachedSampleCount -= pFrame->FrameData()->nb_samples;
+
+		frameInfo = FrameHolderPtr(pFrame, [this](FrameHolder* pFrametoFree) 
+			{
+				m_blankAudioFrame.Free(pFrametoFree);
+			});
+		return CodeOK;
+	}
+	else
+	{
+		return CodeAgain;
+	}
+}
+
+int DecodeFile::DecodeAudioFrame(int& sampleCountGot)
+{
+	if (!m_pDecoder)
+	{
+		return CodeNo;
+	}
+
+	auto res = m_pDecoder->DecodeAudioFrame();
+	if (res != CodeOK)
+	{
+		LOG() << "DecodeAudioFrame " << res;
+		return CodeNo;
+	}
+
+	auto pDecodeSample = m_pDecoder->GetAFrame();
+	sampleCountGot = pDecodeSample->nb_samples;
+
+	AV_CH_LAYOUT_STEREO;
+	auto pFrame = m_blankAudioFrame.Alloc("audio",
+		pDecodeSample->format,
+		pDecodeSample->sample_rate,
+		pDecodeSample->nb_samples,
+		pDecodeSample->channel_layout);
+	if (!pFrame)
+	{
+		return CodeNo;
+	}
+
+	int n = av_frame_copy(pFrame->FrameData(), pDecodeSample);
+	if (n < 0)
+	{
+		m_blankAudioFrame.Free(pFrame);
+
+		LOG() << "av_frame_copy error:";
+		PrintFFmpegError(n);
+		return CodeNo;
+	}
+	n = av_frame_copy_props(pFrame->FrameData(), pDecodeSample);
+
+	//LOG() << "cache audio sample";
+	if (!m_cacheAudioFrame.Free(pFrame))
+	{
+		LOG() << __FUNCTION__ << " " << __LINE__ << " " << "cache decoded sample error";
+		return CodeNo;
+	}
+
 	return CodeOK;
 }

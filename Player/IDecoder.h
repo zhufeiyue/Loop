@@ -9,7 +9,7 @@ class FrameHolder
 {
 public:
 	FrameHolder(const std::string& type, int arg1, int arg2,int arg3);
-	FrameHolder(const std::string& type, int arg1, int arg2, int arg3, int arg4);
+	FrameHolder(const std::string& type, int arg1, int arg2, int arg3, int64_t arg4);
 	FrameHolder();
 	~FrameHolder();
 
@@ -36,8 +36,19 @@ public:
 		return m_pFrame;
 	}
 
+	int64_t UniformPTS()
+	{
+		return m_iUniformPTS;
+	}
+
+	void SetUniformPTS(int64_t pts)
+	{
+		m_iUniformPTS = pts;
+	}
+
 private:
 	AVFrame* m_pFrame = nullptr;
+	int64_t  m_iUniformPTS = 0;
 };
 
 typedef std::shared_ptr<FrameHolder> FrameHolderPtr;
@@ -46,7 +57,7 @@ class FramePool
 {
 public:
 	bool Free(FrameHolder*);
-	FrameHolder* Alloc(const std::string& type, int, int, int, int);
+	FrameHolder* Alloc(const std::string& type, int, int, int, int64_t);
 	FrameHolder* Alloc();
 
 private:

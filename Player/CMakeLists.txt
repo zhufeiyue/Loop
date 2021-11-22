@@ -25,6 +25,7 @@ set(PlayerSource main.cpp)
 list(APPEND PlayerSource FFmpegDemuxer.cpp FFmpegDemuxer.h FFmpegMuxer.cpp FFmpegMuxer.h)
 list(APPEND PlayerSource Player.h Player.cpp DecodeFile.h DecodeFile.cpp IDecoder.cpp IRender.h)
 list(APPEND PlayerSource RenderOpenAL.h RenderOpenAL.cpp WavDemuxer.h WavDemuxer.cpp)
+list(APPEND PlayerSource AVSync.h AVSync.cpp)
 
 #aux_source_directory(./view MainQtSource)
 set(PlayerQtSource RenderGraphicsView.cpp RenderGraphicsView.h )
