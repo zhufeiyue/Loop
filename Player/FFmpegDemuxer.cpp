@@ -140,6 +140,8 @@ FFmpegDemuxer::~FFmpegDemuxer()
 
 int FFmpegDemuxer::DemuxVideo(AVPacket& got)
 {
+	std::lock_guard<std::mutex> guard(m_demuxeLock);
+
 	if (!m_pFormatContext || m_iVideoIndex < 0)
 	{
 		return -1;
@@ -214,6 +216,8 @@ int FFmpegDemuxer::DemuxVideo(AVPacket& got)
 
 int FFmpegDemuxer::DemuxAudio(AVPacket& got)
 {
+	std::lock_guard<std::mutex> guard(m_demuxeLock);
+
 	if (!m_pFormatContext || m_iAudioIndex < 0)
 	{
 		return -1;

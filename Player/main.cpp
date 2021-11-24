@@ -16,6 +16,7 @@
 #include <common/Log.h>
 
 #include "RenderOpenAL.h"
+#include "RenderOpenGLWidget.h"
 
 // 使用的ffmpeg版本为4.3
 static void my_log_callback(void*, int level, const char* format, va_list vl)
@@ -60,10 +61,13 @@ int main(int argc, char* argv[])
 	pView->setFrameShape(QFrame::NoFrame); // remove border
 	pView->setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
 
+	auto pGLWidget = new VideoGLWidget(nullptr);
+
 	auto pLayout = new QGridLayout(&w);
 	pLayout->setContentsMargins(0, 0, 0, 0);
 	pLayout->setSpacing(0);
 	pLayout->addWidget(pView, 0, 0);
+	pLayout->addWidget(pGLWidget, 0, 0);
 
 	w.resize(800, 600);
 	w.show();
@@ -73,9 +77,9 @@ int main(int argc, char* argv[])
 	player.InitAudioRender(nullptr);
 
 	//player.StartPlay("D:/迅雷下载/阳光电影www.ygdy8.com.神奇女侠1984.2020.BD.1080P.国英双语双字.mkv");
-	//player.StartPlay("D:/迅雷下载/[久久美剧www.jjmjtv.com]星际之门.宇宙.Stargate.Universe.S01E18.Chi_Eng.BD-HDTV.AC3.1024X576.x264-YYeTs.mkv");
-	//player.StartPlay("D:/迅雷下载/1/1/hotel3.mp4");
-	//player.StartPlay("D:/迅雷云盘/楚门的世界.1080p.国英双语.BD中英双字/楚门的世界.1080p.国英双语.BD中英双字[66影视www.66Ys.Co].mp4");
+	//player.StartPlay("D:/迅雷下载/[阳光电影www.ygdy8.com].了不起的盖茨比.BD.720p.中英双字幕.rmvb");
+	//player.StartPlay("D:/迅雷下载/1/副总统.Veep.S07E02.720p.x264.AAC.大家字幕组.mp4");
+	player.StartPlay("D:/迅雷云盘/楚门的世界.1080p.国英双语.BD中英双字/楚门的世界.1080p.国英双语.BD中英双字[66影视www.66Ys.Co].mp4");
 	//player.StartPlay("D:/迅雷云盘/Veep (2012) - S07E07 - Veep (1080p BluRay x265 Silence).mkv");
 	player.StartPlay("https://newcntv.qcloudcdn.com/asp/hls/main/0303000a/3/default/4f7655094036437c8ec19bf50ba3a8e0/main.m3u8?maxbr=2048");
 	

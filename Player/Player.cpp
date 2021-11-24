@@ -1,6 +1,7 @@
 #include "Player.h"
 #include "DecodeFile.h"
 #include "RenderGraphicsView.h"
+#include "RenderOpenGLWidget.h"
 #include "RenderOpenAL.h"
 
 template<typename T>
@@ -68,14 +69,14 @@ int Player::StopPlay()
 		m_pVideoRender->Stop();
 	}
 
-	if (!m_pDecoder)
+	if (m_pDecoder)
 	{
-		return CodeNo;
-	}
-	m_pDecoder->DestroyDecoder([=](IDecoder::MediaInfo mediaInfo) 
+		m_pDecoder->DestroyDecoder([=](IDecoder::MediaInfo mediaInfo)
 		{
 			return CodeOK;
 		});
+	}
+
 
 	return CodeOK;
 }
@@ -195,12 +196,25 @@ int Player::InitVideoRender(void* pData)
 		return CodeNo;
 	}
 
-	auto pView = pWidget->findChild<QGraphicsView*>();
-	if (!pView)
+	if (0)
 	{
-		return CodeNo;
+		auto pView = pWidget->findChild<QGraphicsView*>();
+		if (!pView)
+		{
+			return CodeNo;
+		}
+		m_pVideoRender.reset(new VideoRenderGraphicsView(pView));
 	}
-	m_pVideoRender.reset(new VideoRenderGraphicsView(pView));
+	else
+	{
+		auto pGLVidget = pWidget->findChild<VideoGLWidget*>();
+		if (!pGLVidget)
+		{
+			return CodeNo;
+		}
+		m_pVideoRender.reset(new VideoRenderOpenGLWidget(pGLVidget));
+	}
+
 
 	return CodeOK;
 }

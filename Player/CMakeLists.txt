@@ -29,6 +29,7 @@ list(APPEND PlayerSource AVSync.h AVSync.cpp)
 
 #aux_source_directory(./view MainQtSource)
 set(PlayerQtSource RenderGraphicsView.cpp RenderGraphicsView.h )
+list(APPEND PlayerQtSource RenderOpenGLWidget.h RenderOpenGLWidget.cpp)
 
 # WIN32(gui program;need WinMain entry point)
 add_executable (player WIN32 ${PlayerSource} ${PlayerQtSource})

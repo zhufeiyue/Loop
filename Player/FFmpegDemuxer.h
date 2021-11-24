@@ -17,6 +17,7 @@ extern "C"
 #include <string>
 #include <queue>
 #include <map>
+#include <mutex>
 
 void PrintFFmpegError(int code);
 
@@ -60,6 +61,7 @@ protected:
 
 	std::queue<AVPacket> m_vPackets;
 	std::queue<AVPacket> m_aPackets;
+	std::mutex           m_demuxeLock;
 
 	/*
 	* Annex-B // rtsp

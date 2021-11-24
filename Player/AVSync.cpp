@@ -181,7 +181,7 @@ again:
 			if (videoPts < audioPts - m_iUpdateInterval*3)
 			{
 				LOG() << "too late";
-				if (againCount < 2)
+				if (againCount < 3)
 				{
 					againCount += 1;
 					lateFrame = std::move(videoFrame);
@@ -192,7 +192,7 @@ again:
 					LOG() << "render late image";
 				}
 			}
-			else if (videoPts > audioPts + m_iUpdateInterval*2)
+			else if (videoPts > audioPts + m_iUpdateInterval / 2)
 			{
 				LOG() << "too early";
 				m_pCachedVideoFrame = std::move(videoFrame);

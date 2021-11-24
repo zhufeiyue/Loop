@@ -102,6 +102,11 @@ FrameHolder* FramePool::Alloc(const std::string& type, int arg1, int arg2, int a
 		{
 			delete pFrame;
 			pFrame = nullptr;
+			try
+			{
+				pFrame = new FrameHolder(type, arg1, arg2, arg3);
+			}
+			catch (...) {}
 		}
 	}
 	else if (type == strAudioType)
@@ -119,6 +124,11 @@ FrameHolder* FramePool::Alloc(const std::string& type, int arg1, int arg2, int a
 		{
 			delete pFrame;
 			pFrame = nullptr;
+			try
+			{
+				pFrame = new FrameHolder(type, arg1, arg2, arg3, arg4);
+			}
+			catch (...) {}
 		}
 	}
 

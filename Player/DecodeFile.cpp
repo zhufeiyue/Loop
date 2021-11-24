@@ -7,24 +7,32 @@
 DecodeFile::DecodeFile()
 {
 	m_pEventLoop.reset(new Eventloop());
-	m_threadWork = std::thread([this]() 
+
+	for (int i = 0; i < 2; ++i)
+	{
+		m_threadWork[i] = std::thread([this]()
 		{
 			m_pEventLoop->Run();
 		});
+	}
 }
 
 DecodeFile::~DecodeFile()
 {
 	m_bVideoDecodeError = true;
+	m_bAudioDecodeError = true;
 
 	if (m_pEventLoop)
 	{
 		m_pEventLoop->Exit();
 	}
 
-	if (m_threadWork.joinable())
+	for (int i = 0; i < 2; ++i)
 	{
-		m_threadWork.join();
+		if (m_threadWork[i].joinable())
+		{
+			m_threadWork[i].join();
+		}
 	}
 
 	if (m_pDecoder)
@@ -137,6 +145,14 @@ int DecodeFile::DestroyDecoder(IDecoder::Callback destroyCallback)
 
 	m_pEventLoop->AsioQueue().PushEvent([=]() 
 		{
+			m_bAudioDecodeError = true;
+			m_bVideoDecodeError = true;
+			while (m_bAudioDecoding || m_bVideoDecoding)
+			{
+				LOG() << "waiting decode end";
+				std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			}
+
 			m_pDecoder.reset(nullptr);
 
 			MediaInfo mediaInfo;
@@ -180,14 +196,14 @@ int DecodeFile::GetNextFrame(FrameHolderPtr& frameInfo, int type)
 int DecodeFile::GetNextVideoFrmae(FrameHolderPtr& frameInfo)
 {
 	auto pFrame = m_cachedVideoFrame.Alloc();
-	if (!pFrame || m_iCachedFrameCount < 3)
+	if (!pFrame || m_iCachedFrameCount < 5)
 	{
 		if (m_pEventLoop && m_pEventLoop->IsRunning() && !m_bVideoDecoding)
 		{
 			m_bVideoDecoding = true;
 			m_pEventLoop->AsioQueue().PushEvent([this]()
 				{
-					while (m_iCachedFrameCount < 5 && m_bVideoDecoding && !m_bVideoDecodeError)
+					while (m_iCachedFrameCount < 6 && m_bVideoDecoding && !m_bVideoDecodeError)
 					{
 						if (DecodeVideoFrame() != CodeOK)
 						{
@@ -273,14 +289,14 @@ int DecodeFile::DecodeVideoFrame()
 int DecodeFile::GetNextAudioFrame(FrameHolderPtr& frameInfo)
 {
 	auto pFrame = m_cacheAudioFrame.Alloc();
-	if (!pFrame || m_iCachedSampleCount < m_iAuioRate / 4)
+	if (!pFrame || m_iCachedSampleCount < m_iAuioRate / 2)
 	{
 		if (m_pEventLoop && m_pEventLoop->IsRunning() && !m_bAudioDecoding)
 		{
 			m_bAudioDecoding = true;
 			m_pEventLoop->AsioQueue().PushEvent([this]()
 				{
-					while (m_iCachedSampleCount < m_iAuioRate/2 && m_bAudioDecoding && !m_bAudioDecodeError)
+					while (m_iCachedSampleCount < m_iAuioRate && m_bAudioDecoding && !m_bAudioDecodeError)
 					{
 						int sampleCount = 0;
 						if (DecodeAudioFrame(sampleCount) != CodeOK)

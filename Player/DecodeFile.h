@@ -26,18 +26,18 @@ protected:
 	int DecodeAudioFrame(int&);
 
 private:
-	std::thread m_threadWork;
+	std::thread m_threadWork[2];
 	std::unique_ptr<Eventloop> m_pEventLoop;
 	std::unique_ptr<FFmpegDecode> m_pDecoder;
 
-	std::atomic<int> m_iCachedFrameCount = 0;
-	bool m_bVideoDecoding = false;
+	std::atomic_int m_iCachedFrameCount = 0;
+	std::atomic_bool m_bVideoDecoding = false;
 	bool m_bVideoDecodeError = false;
 	FramePool m_cachedVideoFrame;
 	FramePool m_blankVideoFrame;
 
-	std::atomic<int> m_iCachedSampleCount = 0;
-	bool m_bAudioDecoding = false;
+	std::atomic_int m_iCachedSampleCount = 0;
+	std::atomic_bool m_bAudioDecoding = false;
 	bool m_bAudioDecodeError = false;
 	FramePool m_cacheAudioFrame;
 	FramePool m_blankAudioFrame;
