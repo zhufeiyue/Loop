@@ -13,6 +13,7 @@ static Nursery<T>& GetNursery()
 
 Player::Player(QObject* pParent) :QObject(pParent)
 {
+	QThread::currentThread()->setPriority(QThread::TimeCriticalPriority);
 }
 
 Player::~Player()

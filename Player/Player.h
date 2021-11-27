@@ -8,6 +8,7 @@
 #include <QMetaMethod>
 #include <QWidget>
 #include <QTimer>
+#include <QThread>
 
 template<typename T>
 class Nursery

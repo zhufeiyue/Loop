@@ -7,6 +7,7 @@
 
 #include "FFmpegDemuxer.h"
 
+// render rgba data
 class VideoGLWidget : public QOpenGLWidget, protected QOpenGLFunctions
 {
 	Q_OBJECT
@@ -14,11 +15,14 @@ public:
 	explicit VideoGLWidget(QWidget* parent);
 	~VideoGLWidget();
 	void SetVideoSize(int w, int h);
-	void CreateVideoTexture(int videoWidth, int videoHeight, const void* pData = nullptr);
-	void UpdateVideoTexture(int videoWidth, int videoHeight, const void* pData);
+	virtual void UpdateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData, const int* pLineSize);
 
 protected:
-	void CalculateDisplay(int canvasWidth, int canvasHeight);
+	virtual void CreateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData = nullptr);
+	virtual const char* GetShaderSoure(int);
+
+	void CalculateMat(int canvasWidth, int canvasHeight);
+	void CalculateVertex(int canvasWidth, int canvasHeight);
 
 protected:
 	void cleanup();
@@ -30,8 +34,9 @@ protected:
 	GLuint m_programID        = 0;
 	GLuint m_vertexShaderID   = 0;
 	GLuint m_fragmentShaderID = 0;
-	GLuint m_videoTextureID   = 0;
+	GLuint m_videoTextureID[3] = { 0 };
 
+	GLuint m_bufferID = 0;
 	GLint m_attr_vertex_id   = -1;
 	GLint m_attr_tecCoord_id = -1;
 
@@ -41,9 +46,39 @@ protected:
 
 	int m_iVideoWidth = 0;
 	int m_iVideoHeight = 0;
-	float* m_pQuadVertices = nullptr;
+	GLfloat* m_pQuadVertices = nullptr;
+	bool m_bClearBackground=true;
 };
 
+// render yuv420p data
+class VideoGLWidgetYUV420P : public VideoGLWidget
+{
+public:
+	explicit VideoGLWidgetYUV420P(QWidget*);
+	void UpdateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData, const int* pLineSize);
+
+protected:
+	void CreateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData);
+	const char* GetShaderSoure(int);
+
+protected:
+	void resizeGL(int, int);
+};
+
+// render nv12 data
+class VideoGLWidgetNV12 : public VideoGLWidget
+{
+public:
+	explicit VideoGLWidgetNV12(QWidget*);
+	void UpdateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData, const int* pLineSize);
+
+protected:
+	void CreateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData);
+	const char* GetShaderSoure(int);
+
+protected:
+	void resizeGL(int, int);
+};
 
 class VideoRenderOpenGLWidget : public IRender
 {

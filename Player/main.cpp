@@ -32,11 +32,38 @@ static void my_log_callback(void*, int level, const char* format, va_list vl)
 	}
 }
 
+static void setSurfaceFormat()
+{
+	auto openGLType = QOpenGLContext::openGLModuleType();
+
+	auto sf = QSurfaceFormat::defaultFormat();
+	auto sf_version = sf.version();
+	auto sf_profile = sf.profile();
+	auto sf_renderType = sf.renderableType();
+	auto sf_colorSpace = sf.colorSpace();
+	auto sf_swapBehavior = sf.swapBehavior();
+
+	QSurfaceFormat fmt;
+	fmt.setDepthBufferSize(24);
+
+	if (QOpenGLContext::openGLModuleType() == QOpenGLContext::LibGL) {
+		qDebug("Requesting 3.3 core context");
+		fmt.setVersion(3, 3);
+		fmt.setProfile(QSurfaceFormat::CoreProfile);
+	}
+	else {
+		qDebug("Requesting 3.0 context");
+		fmt.setVersion(3, 0);
+	}
+}
+
 int main(int argc, char* argv[])
 {
 	QApplication app(argc, argv);
 	
 	av_log_set_callback(my_log_callback);
+
+	//setSurfaceFormat();
 
 	//testPlayWav();
 	//return 0;
@@ -71,17 +98,18 @@ int main(int argc, char* argv[])
 
 	w.resize(800, 600);
 	w.show();
+	//w.showMaximized();
 
 	Player player;
 	player.InitVideoRender(&w);
 	player.InitAudioRender(nullptr);
 
-	//player.StartPlay("D:/迅雷下载/阳光电影www.ygdy8.com.神奇女侠1984.2020.BD.1080P.国英双语双字.mkv");
+	player.StartPlay("D:/迅雷下载/阳光电影www.ygdy8.com.神奇女侠1984.2020.BD.1080P.国英双语双字.mkv");
 	//player.StartPlay("D:/迅雷下载/[阳光电影www.ygdy8.com].了不起的盖茨比.BD.720p.中英双字幕.rmvb");
-	//player.StartPlay("D:/迅雷下载/1/副总统.Veep.S07E02.720p.x264.AAC.大家字幕组.mp4");
-	player.StartPlay("D:/迅雷云盘/楚门的世界.1080p.国英双语.BD中英双字/楚门的世界.1080p.国英双语.BD中英双字[66影视www.66Ys.Co].mp4");
+	//player.StartPlay("D:/迅雷下载/1/1/2.mp4");
+	//player.StartPlay("D:/迅雷云盘/楚门的世界.1080p.国英双语.BD中英双字/楚门的世界.1080p.国英双语.BD中英双字[66影视www.66Ys.Co].mp4");
 	//player.StartPlay("D:/迅雷云盘/Veep (2012) - S07E07 - Veep (1080p BluRay x265 Silence).mkv");
-	player.StartPlay("https://newcntv.qcloudcdn.com/asp/hls/main/0303000a/3/default/4f7655094036437c8ec19bf50ba3a8e0/main.m3u8?maxbr=2048");
+	//player.StartPlay("https://newcntv.qcloudcdn.com/asp/hls/main/0303000a/3/default/4f7655094036437c8ec19bf50ba3a8e0/main.m3u8?maxbr=2048");
 	
 	auto result = app.exec();
 

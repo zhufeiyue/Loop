@@ -203,7 +203,7 @@ int DecodeFile::GetNextVideoFrmae(FrameHolderPtr& frameInfo)
 			m_bVideoDecoding = true;
 			m_pEventLoop->AsioQueue().PushEvent([this]()
 				{
-					while (m_iCachedFrameCount < 6 && m_bVideoDecoding && !m_bVideoDecodeError)
+					while (m_iCachedFrameCount < 10 && m_bVideoDecoding && !m_bVideoDecodeError)
 					{
 						if (DecodeVideoFrame() != CodeOK)
 						{

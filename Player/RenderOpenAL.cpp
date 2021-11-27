@@ -269,6 +269,7 @@ int OpenALDevice::AppendWavData(BufPtr data, int64_t pts)
 			alGetSourcei(m_source, AL_SOURCE_STATE, &iState);
 			if (iState == AL_STOPPED || iState == AL_INITIAL)
 			{
+				LOG() << "restart play";
 				bAutoRePlay = true;
 			}
 		}
