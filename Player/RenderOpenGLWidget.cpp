@@ -129,6 +129,10 @@ const char* VideoGLWidget::VideoGLWidget::GetShaderSoure(int type)
 	else if (type == GL_FRAGMENT_SHADER)
 	{
 		static const char* pFragmentShaderSource_RGB =
+			"#ifdef GL_ES\n"
+				"precision lowp float;\n"
+			"#endif\n"
+
 			"uniform sampler2D textureRGB;\n"
 			"varying vec2 texc;\n"
 			"void main(void)\n"
@@ -167,12 +171,12 @@ void VideoGLWidget::CreateVideoTexture(int videoWidth, int videoHeight, const ui
 	if (pData == nullptr)
 	{
 		auto pTemp = new uint8_t[videoWidth * videoHeight * 4];
-		glTexImage2D(GL_TEXTURE_2D, 0, 4, videoWidth, videoHeight, 0, GL_BGRA, GL_UNSIGNED_BYTE, pTemp);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_BGRA, videoWidth, videoHeight, 0, GL_BGRA, GL_UNSIGNED_BYTE, pTemp);
 		delete[] pTemp;
 	}
 	else
 	{
-		glTexImage2D(GL_TEXTURE_2D, 0, 4, videoWidth, videoHeight, 0, GL_BGRA, GL_UNSIGNED_BYTE, pData[0]);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_BGRA, videoWidth, videoHeight, 0, GL_BGRA, GL_UNSIGNED_BYTE, pData[0]);
 	}
 
 	auto textureLocation = glGetUniformLocation(m_programID, "textureRGB");
@@ -226,6 +230,9 @@ void VideoGLWidget::initializeGL()
 {
 	connect(context(), &QOpenGLContext::aboutToBeDestroyed, this, &VideoGLWidget::cleanup);
 	initializeOpenGLFunctions();
+
+	LOG() << glGetString(GL_VERSION);
+	m_bIsOpenGLES = context()->isOpenGLES();
 
 	int iStatus = 0;
 
@@ -316,7 +323,7 @@ void VideoGLWidget::resizeGL(int w, int h)
 
 void VideoGLWidget::paintGL()
 {
-	if (m_bClearBackground)
+	if (m_bIsOpenGLES || m_bClearBackground)
 	{
 		m_bClearBackground = false;
 
@@ -461,6 +468,10 @@ const char* VideoGLWidgetYUV420P::GetShaderSoure(int type)
 	else if (type == GL_FRAGMENT_SHADER)
 	{
 		static const char* pFragmentShaderSource_YUV420P =
+			"#ifdef GL_ES\n"
+				"precision lowp float;\n"
+			"#endif\n"
+
 			"uniform sampler2D textureY;\n"
 			"uniform sampler2D textureU;\n"
 			"uniform sampler2D textureV;\n"
@@ -473,9 +484,9 @@ const char* VideoGLWidgetYUV420P::GetShaderSoure(int type)
 			"void main() {\n"
 				"vec3 yuv, rgb;\n"
 
-				"yuv.x = texture(textureY, texCoordOut).r - 0.0625;\n"
-				"yuv.y = texture(textureU, texCoordOut).r - 0.5;\n"
-				"yuv.z = texture(textureV, texCoordOut).r - 0.5;\n"
+				"yuv.x = texture2D(textureY, texCoordOut).r - 0.0625;\n"
+				"yuv.y = texture2D(textureU, texCoordOut).r - 0.5;\n"
+				"yuv.z = texture2D(textureV, texCoordOut).r - 0.5;\n"
 
 				"rgb.x = dot(yuv, yuv2r);\n"
 				"rgb.y = dot(yuv, yuv2g);\n"
@@ -619,6 +630,10 @@ const char* VideoGLWidgetNV12::GetShaderSoure(int type)
 	else if (type == GL_FRAGMENT_SHADER)
 	{
 		static const char* pFragmentShaderSource_NV12 =
+			"#ifdef GL_ES\n"
+				"precision lowp float;\n"
+			"#endif\n"
+
 			"uniform sampler2D textureY;\n"
 			"uniform sampler2D textureUV;\n"
 			"varying vec2 texCoordOut;\n"

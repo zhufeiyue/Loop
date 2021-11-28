@@ -12,6 +12,7 @@
 #include "DecodeFile.h"
 #include "Player.h"
 
+#include <filesystem>
 #include <common/Dic.h>
 #include <common/Log.h>
 
@@ -32,6 +33,43 @@ static void my_log_callback(void*, int level, const char* format, va_list vl)
 	}
 }
 
+static void ChooseOpenGL()
+{
+	auto appPath = std::filesystem::current_path();
+	bool bUseSoftwareOpenGL = false;
+	bool bUseOpenGLES = false;
+	bool bUseDesktopOpenGL = true;
+
+	// 默认会加载opengl32.dll
+	std::filesystem::path file_opengl32 = appPath / "opengl32.dll";
+	if (std::filesystem::exists(file_opengl32))
+	{
+		std::filesystem::remove(file_opengl32);
+	}
+
+	if (bUseSoftwareOpenGL)
+	{
+		std::filesystem::path file_opengl32sw = appPath / "opengl32sw.dll";
+		if (std::filesystem::exists(file_opengl32sw))
+		{
+			std::filesystem::copy(file_opengl32sw, file_opengl32);
+		}
+
+		QApplication::setAttribute(Qt::AA_UseSoftwareOpenGL);  // cpu利用率飙升
+		//QApplication::setAttribute(Qt::AA_ShareOpenGLContexts); // cpu利用率飙升 +1 +1 +1
+	}
+	else if (bUseOpenGLES)
+	{
+		QApplication::setAttribute(Qt::AA_UseOpenGLES);
+		QApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
+	}
+	else
+	{
+		QApplication::setAttribute(Qt::AA_UseDesktopOpenGL);
+		QApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
+	}
+}
+
 static void setSurfaceFormat()
 {
 	auto openGLType = QOpenGLContext::openGLModuleType();
@@ -45,25 +83,28 @@ static void setSurfaceFormat()
 
 	QSurfaceFormat fmt;
 	fmt.setDepthBufferSize(24);
+	fmt.setSwapBehavior(QSurfaceFormat::SwapBehavior::TripleBuffer);
 
 	if (QOpenGLContext::openGLModuleType() == QOpenGLContext::LibGL) {
-		qDebug("Requesting 3.3 core context");
-		fmt.setVersion(3, 3);
-		fmt.setProfile(QSurfaceFormat::CoreProfile);
+		// libGL
+		fmt.setVersion(2, 0);
+		fmt.setProfile(QSurfaceFormat::CompatibilityProfile);
 	}
 	else {
-		qDebug("Requesting 3.0 context");
-		fmt.setVersion(3, 0);
+		// libGLES
+		fmt.setVersion(2, 0);
 	}
+
+	QSurfaceFormat::setDefaultFormat(fmt);
 }
 
 int main(int argc, char* argv[])
 {
-	QApplication app(argc, argv);
-	
-	av_log_set_callback(my_log_callback);
+	ChooseOpenGL();
 
-	//setSurfaceFormat();
+	QApplication app(argc, argv);
+	av_log_set_callback(my_log_callback);
+	setSurfaceFormat();
 
 	//testPlayWav();
 	//return 0;
@@ -88,12 +129,14 @@ int main(int argc, char* argv[])
 	pView->setFrameShape(QFrame::NoFrame); // remove border
 	pView->setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
 
-	auto pGLWidget = new VideoGLWidget(nullptr);
+	//auto pGLWidget = new VideoGLWidget(nullptr);
+	auto pGLWidget = new VideoGLWidgetNV12(nullptr);
+	//auto pGLWidget = new VideoGLWidgetYUV420P(nullptr);
 
 	auto pLayout = new QGridLayout(&w);
 	pLayout->setContentsMargins(0, 0, 0, 0);
 	pLayout->setSpacing(0);
-	pLayout->addWidget(pView, 0, 0);
+	//pLayout->addWidget(pView, 0, 0);
 	pLayout->addWidget(pGLWidget, 0, 0);
 
 	w.resize(800, 600);
@@ -104,10 +147,10 @@ int main(int argc, char* argv[])
 	player.InitVideoRender(&w);
 	player.InitAudioRender(nullptr);
 
-	player.StartPlay("D:/迅雷下载/阳光电影www.ygdy8.com.神奇女侠1984.2020.BD.1080P.国英双语双字.mkv");
+	//player.StartPlay("D:/迅雷下载/阳光电影www.ygdy8.com.神奇女侠1984.2020.BD.1080P.国英双语双字.mkv");
 	//player.StartPlay("D:/迅雷下载/[阳光电影www.ygdy8.com].了不起的盖茨比.BD.720p.中英双字幕.rmvb");
-	//player.StartPlay("D:/迅雷下载/1/1/2.mp4");
-	//player.StartPlay("D:/迅雷云盘/楚门的世界.1080p.国英双语.BD中英双字/楚门的世界.1080p.国英双语.BD中英双字[66影视www.66Ys.Co].mp4");
+	//player.StartPlay("D:/迅雷下载/1/1/1.mp4");
+	player.StartPlay("D:/迅雷云盘/楚门的世界.1080p.国英双语.BD中英双字/楚门的世界.1080p.国英双语.BD中英双字[66影视www.66Ys.Co].mp4");
 	//player.StartPlay("D:/迅雷云盘/Veep (2012) - S07E07 - Veep (1080p BluRay x265 Silence).mkv");
 	//player.StartPlay("https://newcntv.qcloudcdn.com/asp/hls/main/0303000a/3/default/4f7655094036437c8ec19bf50ba3a8e0/main.m3u8?maxbr=2048");
 	

@@ -47,7 +47,8 @@ protected:
 	int m_iVideoWidth = 0;
 	int m_iVideoHeight = 0;
 	GLfloat* m_pQuadVertices = nullptr;
-	bool m_bClearBackground=true;
+	bool m_bClearBackground = true;
+	bool m_bIsOpenGLES = true;
 };
 
 // render yuv420p data
