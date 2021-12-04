@@ -231,7 +231,7 @@ void VideoGLWidget::initializeGL()
 	connect(context(), &QOpenGLContext::aboutToBeDestroyed, this, &VideoGLWidget::cleanup);
 	initializeOpenGLFunctions();
 
-	LOG() << glGetString(GL_VERSION);
+	LOG() << "opengl version: " << glGetString(GL_VERSION);
 	m_bIsOpenGLES = context()->isOpenGLES();
 
 	int iStatus = 0;
@@ -801,7 +801,7 @@ int VideoRenderOpenGLWidget::Start()
 	return CodeOK;
 }
 
-int VideoRenderOpenGLWidget::Pause() 
+int VideoRenderOpenGLWidget::Pause(bool) 
 {
 	return CodeOK;
 }
@@ -811,7 +811,7 @@ int VideoRenderOpenGLWidget::Stop()
 	return CodeOK;
 }
 
-int VideoRenderOpenGLWidget::Seek(int64_t)
+int VideoRenderOpenGLWidget::Reset()
 {
 	return CodeOK;
 }

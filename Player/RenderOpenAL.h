@@ -22,11 +22,11 @@ public:
 
 	int Configure(int bitPerSample, int samplePerSecond, int channel, int channelMask);
 	int Play();
-	int Pause();
+	int Pause(bool);
 	int Stop();
 	int SetVolume(float v);
 	int GetVolume(float& v);
-	int GetPlayPts(int64_t&);
+	int GetPlayPosition(int64_t&);
 	int AppendWavData(BufPtr, int64_t pts = 0);
 
 private:
@@ -70,19 +70,19 @@ public:
 	int UpdataFrame(FrameHolderPtr data) override;
 
 	int Start() override;
-	int Pause() override;
 	int Stop() override;
-	int Seek(int64_t) override;
+	int Pause(bool) override;
+	int Reset() override;
 	int GetRenderTime(int64_t&) override;
 
 protected:
 	int AppendOpenALData();
 
 private:
-	std::unique_ptr<OpenALDevice> m_pPlayDevice;
+	std::unique_ptr<OpenALDevice>          m_pPlayDevice;
 	std::unique_ptr<AudioDataCacheConvert> m_pAudioConvert;
 
-	BufPtr m_pAudioData;
+	BufPtr  m_pAudioData;
 	int64_t m_iAudioDataPts = 0;
-	bool m_bAudioDataValid = false;
+	bool    m_bAudioDataValid = false;
 };

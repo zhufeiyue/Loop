@@ -91,9 +91,9 @@ public:
 	int UpdataFrame(FrameHolderPtr data) override;
 
 	int Start() override;
-	int Pause() override;
 	int Stop() override;
-	int Seek(int64_t) override;
+	int Pause(bool) override;
+	int Reset() override;
 	int GetRenderTime(int64_t&) override;
 
 protected:

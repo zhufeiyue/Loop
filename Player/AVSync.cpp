@@ -28,6 +28,15 @@ int IAVSync::SetUpdateInterval(int t)
 	return CodeOK;
 }
 
+int64_t IAVSync::GetCurrentPosition()
+{ 
+	return m_iCurrentPlayPosition; 
+}
+
+int IAVSync::Restet()
+{
+	return CodeOK;
+}
 
 int SyncVideo::Update(AVSyncParam* pParam)
 {
@@ -40,6 +49,7 @@ int SyncVideo::Update(AVSyncParam* pParam)
 		auto pts = frame->FrameData()->pts;
 		pts = av_rescale_q(pts, m_originVideoTimebase, m_uniformTimebase);
 		frame->SetUniformPTS(pts);
+		m_iCurrentPlayPosition = pts;
 
 		pParam->pVideoRender->UpdataFrame(std::move(frame));
 	}
@@ -91,6 +101,7 @@ again:
 		auto pts = frame->FrameData()->pts;
 		pts = av_rescale_q(pts, m_originAudioTimebase, m_uniformTimebase);
 		frame->SetUniformPTS(pts);
+		m_iCurrentPlayPosition = pts;
 
 		n = pParam->pAudioRender->UpdataFrame(frame);
 		if (n == CodeAgain)

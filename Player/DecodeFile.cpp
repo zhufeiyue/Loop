@@ -80,6 +80,7 @@ int DecodeFile::InitDecoder(std::string strMediaPath, IDecoder::Callback initCal
 
 			if (m_pDecoder->ContainVideo())
 			{
+				m_iMaxCacheVideoFrameCount = 10;
 				auto videoTimebase = m_pDecoder->GetVideoTimebase(0);
 
 				mediaInfo.insert("hasVideo", true);
@@ -100,6 +101,7 @@ int DecodeFile::InitDecoder(std::string strMediaPath, IDecoder::Callback initCal
 			if (m_pDecoder->ContainAudio())
 			{
 				m_iAuioRate = m_pDecoder->GetSampleRate();
+				m_iMaxCacheAudioFrameCount = m_iAuioRate;
 				auto audioTimebase = m_pDecoder->GetAudioTimebase(0);
 
 				mediaInfo.insert("hasAudio", true);
@@ -145,8 +147,8 @@ int DecodeFile::DestroyDecoder(IDecoder::Callback destroyCallback)
 
 	m_pEventLoop->AsioQueue().PushEvent([=]() 
 		{
-			m_bAudioDecodeError = true;
-			m_bVideoDecodeError = true;
+			m_iMaxCacheVideoFrameCount = 0;
+			m_iMaxCacheAudioFrameCount = 0;
 			while (m_bAudioDecoding || m_bVideoDecoding)
 			{
 				LOG() << "waiting decode end";
@@ -169,8 +171,9 @@ int DecodeFile::DestroyDecoder(IDecoder::Callback destroyCallback)
 	return CodeOK;
 }
 
-int DecodeFile::Seek(int64_t)
+int DecodeFile::Seek(int64_t, int64_t, Callback)
 {
+
 	return CodeOK;
 }
 
@@ -203,7 +206,8 @@ int DecodeFile::GetNextVideoFrmae(FrameHolderPtr& frameInfo)
 			m_bVideoDecoding = true;
 			m_pEventLoop->AsioQueue().PushEvent([this]()
 				{
-					while (m_iCachedFrameCount < 10 && m_bVideoDecoding && !m_bVideoDecodeError)
+					while (m_iCachedFrameCount < m_iMaxCacheVideoFrameCount && 
+						m_bVideoDecoding && !m_bVideoDecodeError)
 					{
 						if (DecodeVideoFrame() != CodeOK)
 						{
@@ -296,7 +300,8 @@ int DecodeFile::GetNextAudioFrame(FrameHolderPtr& frameInfo)
 			m_bAudioDecoding = true;
 			m_pEventLoop->AsioQueue().PushEvent([this]()
 				{
-					while (m_iCachedSampleCount < m_iAuioRate && m_bAudioDecoding && !m_bAudioDecodeError)
+					while (m_iCachedSampleCount < m_iMaxCacheAudioFrameCount && 
+						m_bAudioDecoding && !m_bAudioDecodeError)
 					{
 						int sampleCount = 0;
 						if (DecodeAudioFrame(sampleCount) != CodeOK)

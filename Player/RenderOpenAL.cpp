@@ -2,7 +2,12 @@
 
 OpenALDevice::OpenALDevice(std::string strDeviceName)
 {
-	m_pDevice = alcOpenDevice(strDeviceName.empty() ? NULL : strDeviceName.c_str());
+	const char* defaultName = nullptr;
+	defaultName = alcGetString(NULL, ALC_DEFAULT_DEVICE_SPECIFIER);
+	if (defaultName)
+		LOG() << "default openal device name: " << defaultName;
+
+	m_pDevice = alcOpenDevice(strDeviceName.empty() ? defaultName : strDeviceName.c_str());
 	if (!m_pDevice)
 	{
 		LOG() << "alcOpenDevice " << alGetError();
@@ -39,9 +44,14 @@ OpenALDevice::~OpenALDevice()
 {
 	if (m_pContext)
 	{
-		alSourceStop(m_source);
-		alDeleteSources(1, &m_source);
+		if (m_sourceState == AL_PLAYING)
+		{
+			alSourceStop(m_source);
+		}
+
+		alSourcei(m_source, AL_BUFFER, 0);
 		alDeleteBuffers(sizeof(m_buffer) / sizeof(m_buffer[0]), m_buffer);
+		alDeleteSources(1, &m_source);
 
 		alcMakeContextCurrent(NULL);
 		alcDestroyContext(m_pContext);
@@ -146,11 +156,18 @@ int OpenALDevice::Play()
 	return CodeOK;
 }
 
-int OpenALDevice::Pause()
+int OpenALDevice::Pause(bool bPause)
 {
 	if (m_source != 0)
 	{
-		alSourcePause(m_source);
+		if (bPause)
+		{
+			alSourcePause(m_source);
+		}
+		else
+		{
+			alSourcePlay(m_source);
+		}
 		alGetSourcei(m_source, AL_SOURCE_STATE, &m_sourceState);
 	}
 
@@ -159,13 +176,21 @@ int OpenALDevice::Pause()
 
 int OpenALDevice::Stop()
 {
+	std::lock_guard<std::mutex> guard(m_lock);
+
 	if (m_source != 0)
 	{
+		UnqueueBuffer();
+
 		alSourceStop(m_source);
 		alGetSourcei(m_source, AL_SOURCE_STATE, &m_sourceState);
+		//alSourcei(m_source, AL_BUFFER, 0);
 
-		std::lock_guard<std::mutex> guard(m_lock);
-		UnqueueBuffer();
+		for (auto iter = m_bufferQueue.begin(); iter != m_bufferQueue.end(); ++iter)
+		{
+			m_bufferUnQueue.push(std::get<0>(*iter));
+		}
+		m_bufferQueue.clear();
 	}
 
 	m_iBufPts = 0;
@@ -209,8 +234,9 @@ int OpenALDevice::GetVolume(float& v)
 	return CodeOK;
 }
 
-int OpenALDevice::GetPlayPts(int64_t& pts)
+int OpenALDevice::GetPlayPosition(int64_t& pts)
 {
+	std::lock_guard<std::mutex> guard(m_lock);
 	UnqueueBuffer();
 
 	int64_t bufStartPts = m_iBufPts;
@@ -489,8 +515,12 @@ int RenderOpenAL::Start()
 	return CodeOK;
 }
 
-int RenderOpenAL::Pause()
+int RenderOpenAL::Pause(bool b)
 {
+	if (m_pPlayDevice)
+	{
+		m_pPlayDevice->Pause(b);
+	}
 	return CodeOK;
 }
 
@@ -503,7 +533,7 @@ int RenderOpenAL::Stop()
 	return CodeOK;
 }
 
-int RenderOpenAL::Seek(int64_t)
+int RenderOpenAL::Reset()
 {
 	return CodeOK;
 }
@@ -516,7 +546,7 @@ int RenderOpenAL::GetRenderTime(int64_t& pts)
 	}
 
 	pts = 0;
-	m_pPlayDevice->GetPlayPts(pts);
+	m_pPlayDevice->GetPlayPosition(pts);
 
 	return CodeOK;
 }

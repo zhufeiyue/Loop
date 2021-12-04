@@ -14,8 +14,8 @@ public:
 	virtual int UpdataFrame(FrameHolderPtr data) = 0;
 
 	virtual int Start() = 0;
-	virtual int Pause() = 0;
 	virtual int Stop()  = 0;
-	virtual int Seek(int64_t)           = 0;
+	virtual int Pause(bool) = 0;
+	virtual int Reset()                 = 0;
 	virtual int GetRenderTime(int64_t&) = 0;
 };

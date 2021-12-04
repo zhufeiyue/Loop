@@ -72,14 +72,124 @@ int Player::StopPlay()
 
 	if (m_pDecoder)
 	{
-		m_pDecoder->DestroyDecoder([=](IDecoder::MediaInfo mediaInfo)
+		std::promise<int> promise;
+		std::future<int> fu = promise.get_future();
+		m_pDecoder->DestroyDecoder([&promise](IDecoder::MediaInfo mediaInfo)
+		{
+			promise.set_value(0);
+			return CodeOK;
+		});
+
+		fu.get();
+	}
+
+
+	return CodeOK;
+}
+
+int Player::Seek(int64_t pos, int64_t curPos)
+{
+	if (!m_bInited)
+	{
+		return CodeOK;
+	}
+
+	if (m_pTimer)
+	{
+		m_pTimer->stop();
+	}
+
+	if (m_pAudioRender)
+	{
+		m_pAudioRender->Reset();
+	}
+	if (m_pVideoRender)
+	{
+		m_pVideoRender->Reset();
+	}
+
+	if (m_pAVSync)
+	{
+		m_pAVSync->Restet();
+	}
+
+	if (m_pDecoder)
+	{
+		m_pDecoder->Seek(pos, curPos, [](Dictionary) 
 		{
 			return CodeOK;
 		});
 	}
 
+	return CodeOK;
+}
+
+int Player::Pause(bool bPause)
+{
+	if (!m_bInited)
+	{
+		return CodeNo;
+	}
+
+	if (m_pTimer)
+	{
+		if (bPause)
+			m_pTimer->stop();
+		else
+			m_pTimer->start();
+	}
+
+	if (m_pAudioRender)
+	{
+		m_pAudioRender->Pause(bPause);
+	}
+	if (m_pVideoRender)
+	{
+		m_pVideoRender->Pause(bPause);
+	}
+
+	m_bPlaying = m_pTimer->isActive();
 
 	return CodeOK;
+}
+
+int Player::GetDuration(int64_t& duration) const
+{
+	auto iter = m_mediaInfo.find("duration");
+	if (iter != m_mediaInfo.end())
+	{
+		duration = iter->second.to<int64_t>(0); // second
+		return CodeOK;
+	}
+	else
+	{
+		duration = 0;
+		return CodeNo;
+	}
+}
+
+int Player::GetCurrentPos(int64_t& playPosition) const
+{
+	if (m_pAVSync)
+	{
+		playPosition = m_pAVSync->GetCurrentPosition();
+		return CodeOK;
+	}
+	else
+	{
+		playPosition = 0;
+		return CodeNo;
+	}
+}
+
+bool Player::IsSupportSeek() const
+{
+	return true;
+}
+
+bool Player::IsPlaying() const
+{
+	return m_bPlaying;
 }
 
 void Player::OnDecoderInited(quint64 key)
@@ -103,6 +213,7 @@ void Player::OnDecoderInited(quint64 key)
 	value->erase("result");
 	value->erase("message");
 	value->insert("type", "init");
+	m_mediaInfo = *value;
 
 	iter = value->find("hasVideo");
 	if (iter != value->end())
@@ -149,8 +260,6 @@ void Player::OnDecoderInited(quint64 key)
 		m_pTimer->stop();
 	}
 	m_pTimer->setInterval(timerInterval);
-	m_pTimer->start();
-
 
 	// create av sync
 	if (m_bHasVideo && !m_bHasAudio)
@@ -177,6 +286,10 @@ void Player::OnDecoderInited(quint64 key)
 	m_syncParam.pDecoder = m_pDecoder.get();
 	m_syncParam.pVideoRender = m_pVideoRender.get();
 	m_syncParam.pAudioRender = m_pAudioRender.get();
+
+	m_bInited = true;
+	m_bPlaying = true;
+	m_pTimer->start();
 }
 
 void Player::OnTimeout()

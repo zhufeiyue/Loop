@@ -73,6 +73,12 @@ public:
 	virtual ~Player();
 	virtual int StartPlay(std::string);
 	virtual int StopPlay();
+	virtual int Seek(int64_t, int64_t);
+	virtual int Pause(bool);
+	virtual int GetDuration(int64_t&) const;
+	virtual int GetCurrentPos(int64_t&) const;
+	virtual bool IsSupportSeek() const;
+	virtual bool IsPlaying() const;
 
 	virtual int InitVideoRender(void*);
 	virtual int InitAudioRender(void*);
@@ -93,8 +99,11 @@ protected:
 	std::unique_ptr<IAVSync> m_pAVSync;
 	
 	QTimer* m_pTimer = nullptr;
+	bool m_bInited = false;
+	bool m_bPlaying = false;
 	bool m_bHasAudio = false;
 	bool m_bHasVideo = false;
 
+	Dictionary  m_mediaInfo;
 	AVSyncParam m_syncParam;
 };

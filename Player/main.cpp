@@ -8,14 +8,11 @@
 #include <QJsonDocument>
 #include <QSysInfo>
 
-#include "FFmpegDemuxer.h"
-#include "DecodeFile.h"
-#include "Player.h"
-
 #include <filesystem>
 #include <common/Dic.h>
 #include <common/Log.h>
 
+#include "Player.h"
 #include "RenderOpenAL.h"
 #include "RenderOpenGLWidget.h"
 
@@ -35,10 +32,23 @@ static void my_log_callback(void*, int level, const char* format, va_list vl)
 
 static void ChooseOpenGL()
 {
+	QSysInfo sysInfo;
+	auto t1 = sysInfo.prettyProductName();
+	auto t2 = sysInfo.productType();
+	auto t3 = sysInfo.productVersion();
+
 	auto appPath = std::filesystem::current_path();
 	bool bUseSoftwareOpenGL = false;
 	bool bUseOpenGLES = false;
 	bool bUseDesktopOpenGL = true;
+
+	if (t2 == "windows")
+	{
+		if (sysInfo.windowsVersion() != QSysInfo::WV_WINDOWS10)
+		{
+			bUseOpenGLES = true;
+		}
+	}
 
 	// 默认会加载opengl32.dll
 	std::filesystem::path file_opengl32 = appPath / "opengl32.dll";
@@ -61,12 +71,12 @@ static void ChooseOpenGL()
 	else if (bUseOpenGLES)
 	{
 		QApplication::setAttribute(Qt::AA_UseOpenGLES);
-		QApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
+		//QApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
 	}
 	else
 	{
 		QApplication::setAttribute(Qt::AA_UseDesktopOpenGL);
-		QApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
+		//QApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
 	}
 }
 
@@ -95,8 +105,40 @@ static void setSurfaceFormat()
 		fmt.setVersion(2, 0);
 	}
 
-	QSurfaceFormat::setDefaultFormat(fmt);
+	//QSurfaceFormat::setDefaultFormat(fmt);
 }
+
+class PlayerControl : public QObject
+{
+public:
+	PlayerControl(Player* p, QWidget* pUI)
+	{
+		m_pPlayer = p;
+		m_pUI = pUI;
+		m_pUI->installEventFilter(this);
+	}
+
+	~PlayerControl()
+	{
+		m_pUI->removeEventFilter(this);
+	}
+
+	bool eventFilter(QObject* watched, QEvent* event)
+	{
+		if (event->type() == QEvent::MouseButtonPress)
+		{
+			QMouseEvent* pMouseEvent = dynamic_cast<QMouseEvent*>(event);
+			if (pMouseEvent->button() == Qt::LeftButton)
+			{
+				m_pPlayer->Pause(m_pPlayer->IsPlaying());
+			}
+		}
+		return QObject::eventFilter(watched, event);
+	}
+
+	Player* m_pPlayer = nullptr;
+	QWidget* m_pUI = nullptr;
+};
 
 int main(int argc, char* argv[])
 {
@@ -104,14 +146,9 @@ int main(int argc, char* argv[])
 
 	QApplication app(argc, argv);
 	av_log_set_callback(my_log_callback);
-	setSurfaceFormat();
 
 	//testPlayWav();
 	//return 0;
-	QSysInfo sysInfo;
-	auto t1 = sysInfo.prettyProductName();
-	auto t2 = sysInfo.productType();
-	auto t3 = sysInfo.productVersion();
 
 	QWidget w;
 	auto pScene = new QGraphicsScene(&w);
@@ -144,13 +181,15 @@ int main(int argc, char* argv[])
 	//w.showMaximized();
 
 	Player player;
+	PlayerControl playerControl(&player, &w);
+
 	player.InitVideoRender(&w);
 	player.InitAudioRender(nullptr);
 
 	//player.StartPlay("D:/迅雷下载/阳光电影www.ygdy8.com.神奇女侠1984.2020.BD.1080P.国英双语双字.mkv");
 	//player.StartPlay("D:/迅雷下载/[阳光电影www.ygdy8.com].了不起的盖茨比.BD.720p.中英双字幕.rmvb");
-	//player.StartPlay("D:/迅雷下载/1/1/1.mp4");
-	player.StartPlay("D:/迅雷云盘/楚门的世界.1080p.国英双语.BD中英双字/楚门的世界.1080p.国英双语.BD中英双字[66影视www.66Ys.Co].mp4");
+	player.StartPlay("D:/迅雷下载/1/1/1.mp4");
+	//player.StartPlay("D:/迅雷云盘/楚门的世界.1080p.国英双语.BD中英双字/楚门的世界.1080p.国英双语.BD中英双字[66影视www.66Ys.Co].mp4");
 	//player.StartPlay("D:/迅雷云盘/Veep (2012) - S07E07 - Veep (1080p BluRay x265 Silence).mkv");
 	//player.StartPlay("https://newcntv.qcloudcdn.com/asp/hls/main/0303000a/3/default/4f7655094036437c8ec19bf50ba3a8e0/main.m3u8?maxbr=2048");
 	

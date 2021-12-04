@@ -223,7 +223,7 @@ int VideoRenderGraphicsView::Start()
 	return CodeOK;
 }
 
-int VideoRenderGraphicsView::Pause()
+int VideoRenderGraphicsView::Pause(bool)
 {
 	return CodeOK;
 }
@@ -233,7 +233,7 @@ int VideoRenderGraphicsView::Stop()
 	return CodeOK;
 }
 
-int VideoRenderGraphicsView::Seek(int64_t)
+int VideoRenderGraphicsView::Reset()
 {
 	return CodeOK;
 }

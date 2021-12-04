@@ -71,7 +71,7 @@ public:
 			try
 			{
 				p = new T(args...);
-				LOG() << __FUNCTION__ <<  " new T";
+				//LOG() << __FUNCTION__ <<  " new T";
 			}
 			catch (...)
 			{

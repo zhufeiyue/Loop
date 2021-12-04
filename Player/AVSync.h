@@ -19,12 +19,14 @@ public:
 
 	virtual int SetMediaInfo(Dictionary dic);
 	virtual int SetUpdateInterval(int);
-
+	virtual int Restet();
+	virtual int64_t GetCurrentPosition();
 protected:
 	AVRational m_originVideoTimebase;
 	AVRational m_originAudioTimebase;
 	AVRational m_uniformTimebase;
-	int m_iUpdateInterval = 0; //ms
+	int     m_iUpdateInterval = 0; //ms
+	int64_t m_iCurrentPlayPosition = 0;
 };
 
 class SyncVideo : public IAVSync
