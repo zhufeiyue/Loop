@@ -400,6 +400,57 @@ AVRational FFmpegDemuxer::GetAudioTimebase(int)
 	return tb;
 }
 
+int FFmpegDemuxer::Seek(int64_t target_pos, int64_t currPos)
+{
+	/*
+	* 输入参数的单位是ms
+	*/
+
+	std::lock_guard<std::mutex> guard(m_demuxeLock);
+	int64_t minpts, maxpts, ts;
+	int64_t tsUnit = 1000;
+
+	if (!m_pFormatContext)
+	{
+		return CodeNo;
+	}
+
+	ts = (int64_t)(target_pos * tsUnit);
+	if (currPos >= target_pos)
+	{
+		minpts = INT64_MIN;
+		maxpts = currPos * tsUnit - 2;
+	}
+	else
+	{
+		minpts = currPos * tsUnit + 2;
+		maxpts = INT64_MAX;
+	}
+
+	auto result = avformat_seek_file(m_pFormatContext, -1, minpts, ts, maxpts, 0);
+	if (result < 0)
+	{
+		LOG() << "avformat_seek_file:";
+		PrintFFmpegError(result);
+		return CodeNo;
+	}
+
+	while (!m_aPackets.empty())
+	{
+		auto& packet = m_aPackets.front();
+		av_packet_unref(&packet);
+		m_aPackets.pop();
+	}
+	while (!m_vPackets.empty())
+	{
+		auto& packet = m_vPackets.front();
+		av_packet_unref(&packet);
+		m_vPackets.pop();
+	}
+
+	return CodeOK;
+}
+
 static int32_t Char2ToLittleInt(const uint8_t* temp)
 {
 	const unsigned char* p = (const uint8_t*)temp;
@@ -521,6 +572,22 @@ FFmpegDecode::~FFmpegDecode()
 	{
 		avcodec_free_context(&m_pVCodecContext);
 	}
+}
+
+int FFmpegDecode::Seek(int64_t target_pos, int64_t currPos)
+{
+	auto result = FFmpegDemuxer::Seek(target_pos, currPos);
+	if (result != CodeOK)
+	{
+		return result;
+	}
+
+	if (m_pVCodecContext)
+		avcodec_flush_buffers(m_pVCodecContext);
+	if (m_pACodecContext)
+		avcodec_flush_buffers(m_pACodecContext);
+
+	return CodeOK;
 }
 
 int FFmpegDecode::CreateDecoder()
@@ -778,6 +845,7 @@ int FFmpegHWDecode::CreateDecoder()
 			n = av_hwdevice_ctx_create(&hw_device_ctx, type, NULL, NULL, 0);
 			if (n < 0)
 			{
+				LOG() << "av_hwdevice_ctx_create:";
 				PrintFFmpegError(n);
 				return false;
 			}
@@ -790,6 +858,7 @@ int FFmpegHWDecode::CreateDecoder()
 			n = avcodec_open2(m_pVCodecContext, m_pVCodec, &opts);
 			if (n < 0)
 			{
+				LOG() << "avcodec_open2:";
 				PrintFFmpegError(n);
 
 				av_buffer_unref(&hw_device_ctx);

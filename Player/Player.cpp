@@ -13,11 +13,12 @@ static Nursery<T>& GetNursery()
 
 Player::Player(QObject* pParent) :QObject(pParent)
 {
-	QThread::currentThread()->setPriority(QThread::TimeCriticalPriority);
+	QThread::currentThread()->setPriority(QThread::HighestPriority);
 }
 
 Player::~Player()
 {
+	QThread::currentThread()->setPriority(QThread::NormalPriority);
 }
 
 int Player::StartPlay(std::string strMediaPath)
@@ -87,12 +88,29 @@ int Player::StopPlay()
 	return CodeOK;
 }
 
-int Player::Seek(int64_t pos, int64_t curPos)
+int Player::Seek(int64_t pos)
 {
+	// pos ms
+	auto sig = QMetaMethod::fromSignal(&Player::sigDecoderSeek);
+	if (!isSignalConnected(sig))
+	{
+		QObject::connect(this, SIGNAL(sigDecoderSeek(quint64)), this, SLOT(OnDecoderSeek(quint64)), Qt::QueuedConnection);
+	}
+
 	if (!m_bInited)
 	{
 		return CodeOK;
 	}
+
+	if (m_bSeeking)
+	{
+		return CodeNo;
+	}
+
+	int64_t curPos = 0;
+	GetCurrentPos(curPos);
+
+	m_bSeeking = true;
 
 	if (m_pTimer)
 	{
@@ -115,8 +133,9 @@ int Player::Seek(int64_t pos, int64_t curPos)
 
 	if (m_pDecoder)
 	{
-		m_pDecoder->Seek(pos, curPos, [](Dictionary) 
+		m_pDecoder->Seek(pos, curPos, [this](Dictionary dic) 
 		{
+			this->sigDecoderSeek(0);
 			return CodeOK;
 		});
 	}
@@ -127,6 +146,11 @@ int Player::Seek(int64_t pos, int64_t curPos)
 int Player::Pause(bool bPause)
 {
 	if (!m_bInited)
+	{
+		return CodeNo;
+	}
+
+	if (m_bSeeking)
 	{
 		return CodeNo;
 	}
@@ -290,6 +314,16 @@ void Player::OnDecoderInited(quint64 key)
 	m_bInited = true;
 	m_bPlaying = true;
 	m_pTimer->start();
+}
+
+void Player::OnDecoderSeek(quint64)
+{
+	m_bSeeking = false;
+	if (m_pTimer)
+	{
+		m_pTimer->start();
+		m_bPlaying = true;
+	}
 }
 
 void Player::OnTimeout()

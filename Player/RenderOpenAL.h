@@ -24,6 +24,7 @@ public:
 	int Play();
 	int Pause(bool);
 	int Stop();
+	int Reset();
 	int SetVolume(float v);
 	int GetVolume(float& v);
 	int GetPlayPosition(int64_t&);

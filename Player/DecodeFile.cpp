@@ -151,7 +151,7 @@ int DecodeFile::DestroyDecoder(IDecoder::Callback destroyCallback)
 			m_iMaxCacheAudioFrameCount = 0;
 			while (m_bAudioDecoding || m_bVideoDecoding)
 			{
-				LOG() << "waiting decode end";
+				LOG() << "waiting decode end(for stop)";
 				std::this_thread::sleep_for(std::chrono::milliseconds(1));
 			}
 
@@ -171,14 +171,95 @@ int DecodeFile::DestroyDecoder(IDecoder::Callback destroyCallback)
 	return CodeOK;
 }
 
-int DecodeFile::Seek(int64_t, int64_t, Callback)
+int DecodeFile::Seek(int64_t pos, int64_t currPos, Callback seekCb)
 {
+	if (!m_pEventLoop || !m_pEventLoop->IsRunning())
+	{
+		return CodeNo;
+	}
+	if (m_bSeeking)
+	{
+		return CodeNo;
+	}
+
+	auto oldMaxVideoCount = m_iMaxCacheVideoFrameCount;
+	auto oldMaxAudioCount = m_iMaxCacheAudioFrameCount;
+
+	m_iMaxCacheAudioFrameCount = 0;
+	m_iMaxCacheVideoFrameCount = 0;
+	m_bSeeking = true;
+
+	m_pEventLoop->AsioQueue().PushEvent([=]() 
+	{
+		while (m_bVideoDecoding || m_bAudioDecoding)
+		{
+			LOG() << "waiting decode end(for seek)";
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+		}
+
+		if (m_pDecoder)
+		{
+			if (CodeOK != m_pDecoder->Seek(pos, currPos))
+			{
+				return CodeNo;
+			}
+		}
+
+		FrameHolder* pFrameHolder = nullptr;
+		while (true)
+		{
+			pFrameHolder = m_cachedVideoFrame.Alloc();
+			if (pFrameHolder)
+			{
+				//m_iCachedFrameCount -= 1;
+				m_blankVideoFrame.Free(pFrameHolder);
+			}
+			else
+			{
+				break;
+			}
+		}
+		m_iCachedFrameCount = 0;
+
+		while (true)
+		{
+			pFrameHolder = m_cacheAudioFrame.Alloc();
+			if (pFrameHolder)
+			{
+				//m_iCachedSampleCount -= pFrameHolder->FrameData()->nb_samples;
+				m_blankAudioFrame.Free(pFrameHolder);
+			}
+			else
+			{
+				break;
+			}
+		}
+		m_iCachedSampleCount = 0;
+
+		m_bSeeking = false;
+		m_iMaxCacheAudioFrameCount = oldMaxAudioCount;
+		m_iMaxCacheVideoFrameCount = oldMaxVideoCount;
+
+		if (seekCb)
+		{
+			Dictionary dic;
+			dic.insert("result", 1);
+
+			seekCb(dic);
+		}
+
+		return CodeOK;
+	});
 
 	return CodeOK;
 }
 
 int DecodeFile::GetNextFrame(FrameHolderPtr& frameInfo, int type)
 {
+	if (m_bSeeking)
+	{
+		return CodeAgain;
+	}
 	if (m_bVideoDecodeError || m_bAudioDecodeError)
 	{
 		return CodeNo;

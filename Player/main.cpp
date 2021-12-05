@@ -132,6 +132,14 @@ public:
 			{
 				m_pPlayer->Pause(m_pPlayer->IsPlaying());
 			}
+			else if (pMouseEvent->button() == Qt::RightButton)
+			{
+				int64_t duration = 0;
+				m_pPlayer->GetDuration(duration);
+
+				int seekPos = 1.0f * pMouseEvent->x() / m_pUI->width() * duration * 1000;
+				m_pPlayer->Seek(seekPos);
+			}
 		}
 		return QObject::eventFilter(watched, event);
 	}

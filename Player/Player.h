@@ -73,7 +73,7 @@ public:
 	virtual ~Player();
 	virtual int StartPlay(std::string);
 	virtual int StopPlay();
-	virtual int Seek(int64_t, int64_t);
+	virtual int Seek(int64_t);
 	virtual int Pause(bool);
 	virtual int GetDuration(int64_t&) const;
 	virtual int GetCurrentPos(int64_t&) const;
@@ -87,9 +87,11 @@ public:
 
 signals:
 	void sigDecoderInited(quint64);
+	void sigDecoderSeek(quint64);
 
 protected slots:
 	void OnDecoderInited(quint64);
+	void OnDecoderSeek(quint64);
 	void OnTimeout();
 
 protected:
@@ -101,6 +103,7 @@ protected:
 	QTimer* m_pTimer = nullptr;
 	bool m_bInited = false;
 	bool m_bPlaying = false;
+	bool m_bSeeking = false;
 	bool m_bHasAudio = false;
 	bool m_bHasVideo = false;
 

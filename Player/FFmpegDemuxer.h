@@ -27,6 +27,7 @@ public:
 	FFmpegDemuxer(std::string);
 	virtual ~FFmpegDemuxer();
 	friend int InterruptCB(void*);
+	virtual int Seek(int64_t, int64_t);
 
 	int DemuxVideo(AVPacket& );
 	int DemuxAudio(AVPacket& );
@@ -34,9 +35,9 @@ public:
 	bool ContainVideo() const;
 	bool ContainAudio() const;
 
-	double GetFrameRate();
+	double              GetFrameRate();
 	std::pair<int, int> GetFrameSize();
-	AVPixelFormat GetFrameFormat();
+	AVPixelFormat       GetFrameFormat();
 
 	AVSampleFormat GetSampleFormat();
 	int GetSampleRate();
@@ -76,6 +77,7 @@ class FFmpegDecode : public FFmpegDemuxer
 public:
 	FFmpegDecode(std::string);
 	~FFmpegDecode();
+	int Seek(int64_t, int64_t) override;
 
 	virtual int CreateDecoder();
 	virtual int DecodeVideo(AVPacket&);

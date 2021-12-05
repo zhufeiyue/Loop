@@ -199,6 +199,23 @@ int OpenALDevice::Stop()
 	return CodeOK;
 }
 
+int OpenALDevice::Reset()
+{
+	std::lock_guard<std::mutex> guard(m_lock);
+
+	alSourceStop(m_source);
+	alSourcei(m_source, AL_BUFFER, 0);
+	for (auto iter = m_bufferQueue.begin(); iter != m_bufferQueue.end(); ++iter)
+	{
+		m_bufferUnQueue.push(std::get<0>(*iter));
+	}
+	m_bufferQueue.clear();
+	if (m_sourceState == AL_PLAYING)
+		alSourcePlay(m_source);
+
+	return CodeOK;
+}
+
 int OpenALDevice::SetVolume(float v)
 {
 	if (v < 0.0f)
@@ -535,6 +552,10 @@ int RenderOpenAL::Stop()
 
 int RenderOpenAL::Reset()
 {
+	if (m_pPlayDevice)
+	{
+		m_pPlayDevice->Reset();
+	}
 	return CodeOK;
 }
 

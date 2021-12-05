@@ -4,6 +4,7 @@
 VideoGLWidget::VideoGLWidget(QWidget* parent):
 	QOpenGLWidget(parent)
 {
+	setUpdateBehavior(QOpenGLWidget::PartialUpdate);
 }
 
 VideoGLWidget::~VideoGLWidget()
@@ -185,7 +186,7 @@ void VideoGLWidget::CreateVideoTexture(int videoWidth, int videoHeight, const ui
 
 void VideoGLWidget::UpdateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData, const int*)
 {
-	if (m_videoTextureID == 0)
+	if (m_videoTextureID[0] == 0)
 	{
 		LOG() << "no video texture";
 		return;
