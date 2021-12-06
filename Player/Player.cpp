@@ -246,7 +246,8 @@ void Player::OnDecoderInited(quint64 key)
 		if (m_bHasVideo && CodeOK != m_pVideoRender->ConfigureRender(*value))
 		{
 			LOG() << "video ConfigureRender failed";
-			return;
+			m_bHasVideo = false;
+			m_pDecoder->EnableVideo(false);
 		}
 	}
 
@@ -257,7 +258,8 @@ void Player::OnDecoderInited(quint64 key)
 		if (m_bHasAudio && CodeOK != m_pAudioRender->ConfigureRender(*value))
 		{
 			LOG() << "audio ConfigureRender failed";
-			return;
+			m_bHasAudio = false;
+			m_pDecoder->EnableAudio(false);
 		}
 	}
 

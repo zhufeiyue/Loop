@@ -72,6 +72,11 @@ int OpenALDevice::Configure(int bitPerSample, int samplePerSecond, int channel, 
 	m_iSamplePerSecond = samplePerSecond;
 	m_iBlockAlign = channel * bitPerSample / 8;
 
+	if (m_source == 0)
+	{
+		return CodeNo;
+	}
+
 	if (channel == 1)
 	{
 		switch (bitPerSample)
@@ -483,12 +488,7 @@ int RenderOpenAL::UpdataFrame(FrameHolderPtr inData)
 {
 	if (m_bAudioDataValid)
 	{
-		if (CodeOK != AppendOpenALData())
-		{
-			return CodeNo;
-		}
-
-		return CodeRejection;
+		return AppendOpenALData();
 	}
 
 	bool bReject = false;
@@ -517,13 +517,9 @@ int RenderOpenAL::UpdataFrame(FrameHolderPtr inData)
 		memcpy(m_pAudioData->Data(), pOutFrame->data[0], audioSize);
 		m_pAudioData->PlayloadSize() = audioSize;
 		m_iAudioDataPts = outPts;
+		m_bAudioDataValid = true;
 
-		if (CodeOK != AppendOpenALData())
-		{
-			return CodeNo;
-		}
-
-		return CodeRejection;
+		return AppendOpenALData();
 	}
 }
 
@@ -574,22 +570,23 @@ int RenderOpenAL::GetRenderTime(int64_t& pts)
 
 int RenderOpenAL::AppendOpenALData()
 {
-	int n = m_pPlayDevice->AppendWavData(m_pAudioData, m_iAudioDataPts);
+	int result;
 
-	m_bAudioDataValid = false;
-	if (n == CodeOK)
+	result = m_pPlayDevice->AppendWavData(m_pAudioData, m_iAudioDataPts);
+	if (result == CodeOK)
 	{
+		m_bAudioDataValid = false;
 	}
-	else if (n == CodeRejection)
+	else if (result == CodeRejection)
 	{
-		m_bAudioDataValid = true;
 	}
 	else
 	{
+		m_bAudioDataValid = false;
 		return CodeNo;
 	}
 
-	return CodeOK;
+	return result;
 }
 
 

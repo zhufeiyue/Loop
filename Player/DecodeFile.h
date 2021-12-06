@@ -17,7 +17,8 @@ public:
 	int DestroyDecoder(Callback) override;
 	int Seek(int64_t, int64_t, Callback) override;
 	int GetNextFrame(FrameHolderPtr&, int) override;
-
+	bool EnableVideo(bool) override;
+	bool EnableAudio(bool) override;
 protected:
 	int GetNextVideoFrmae(FrameHolderPtr&);
 	int DecodeVideoFrame();

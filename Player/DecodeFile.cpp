@@ -171,6 +171,24 @@ int DecodeFile::DestroyDecoder(IDecoder::Callback destroyCallback)
 	return CodeOK;
 }
 
+bool DecodeFile::EnableVideo(bool bEnable)
+{
+	if (m_pDecoder)
+	{
+		return m_pDecoder->EnableVideo(bEnable);
+	}
+	return false;
+}
+
+bool DecodeFile::EnableAudio(bool bEnable)
+{
+	if (m_pDecoder)
+	{
+		return m_pDecoder->EnableAudio(bEnable);
+	}
+	return false;
+}
+
 int DecodeFile::Seek(int64_t pos, int64_t currPos, Callback seekCb)
 {
 	if (!m_pEventLoop || !m_pEventLoop->IsRunning())

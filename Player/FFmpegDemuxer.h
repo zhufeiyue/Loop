@@ -34,6 +34,8 @@ public:
 
 	bool ContainVideo() const;
 	bool ContainAudio() const;
+	bool EnableVideo(bool);
+	bool EnableAudio(bool);
 
 	double              GetFrameRate();
 	std::pair<int, int> GetFrameSize();
@@ -55,6 +57,8 @@ protected:
 	int m_iInterrupt = 0;
 	int m_iVideoIndex = AVERROR_STREAM_NOT_FOUND;
 	int m_iAudioIndex = AVERROR_STREAM_NOT_FOUND;
+	bool m_bEnableVideo = true;
+	bool m_bEnableAudio = true;
 	AVCodecID m_vCodecID = AV_CODEC_ID_NONE;
 	AVCodecID m_aCodecID = AV_CODEC_ID_NONE;
 	AVPixelFormat m_pixFormat = AV_PIX_FMT_NONE;

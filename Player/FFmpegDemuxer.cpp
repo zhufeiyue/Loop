@@ -142,7 +142,7 @@ int FFmpegDemuxer::DemuxVideo(AVPacket& got)
 {
 	std::lock_guard<std::mutex> guard(m_demuxeLock);
 
-	if (!m_pFormatContext || m_iVideoIndex < 0)
+	if (!m_pFormatContext || m_iVideoIndex < 0 || !m_bEnableVideo)
 	{
 		return -1;
 	}
@@ -174,7 +174,7 @@ int FFmpegDemuxer::DemuxVideo(AVPacket& got)
 
 		if (packet.stream_index != m_iVideoIndex)
 		{
-			if (packet.stream_index == m_iAudioIndex)
+			if (packet.stream_index == m_iAudioIndex && m_bEnableAudio)
 			{
 				m_aPackets.push(packet);
 			}
@@ -218,7 +218,7 @@ int FFmpegDemuxer::DemuxAudio(AVPacket& got)
 {
 	std::lock_guard<std::mutex> guard(m_demuxeLock);
 
-	if (!m_pFormatContext || m_iAudioIndex < 0)
+	if (!m_pFormatContext || m_iAudioIndex < 0 || !m_bEnableAudio)
 	{
 		return -1;
 	}
@@ -246,7 +246,7 @@ int FFmpegDemuxer::DemuxAudio(AVPacket& got)
 
 		if (got.stream_index != m_iAudioIndex)
 		{
-			if (got.stream_index == m_iVideoIndex)
+			if (got.stream_index == m_iVideoIndex && m_bEnableVideo)
 			{
 				m_vPackets.push(got);
 			}
@@ -269,6 +269,24 @@ bool FFmpegDemuxer::ContainVideo() const
 bool FFmpegDemuxer::ContainAudio() const
 {
 	return m_iAudioIndex >= 0;
+}
+
+bool FFmpegDemuxer::EnableVideo(bool bEnable)
+{
+	std::lock_guard<std::mutex> guard(m_demuxeLock);
+
+	auto old = m_bEnableVideo;
+	m_bEnableVideo = bEnable;
+	return old;
+}
+
+bool FFmpegDemuxer::EnableAudio(bool bEnable)
+{
+	std::lock_guard<std::mutex> guard(m_demuxeLock);
+
+	auto old = m_bEnableAudio;
+	m_bEnableAudio = bEnable;
+	return old;
 }
 
 double FFmpegDemuxer::GetFrameRate()

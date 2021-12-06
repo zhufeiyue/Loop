@@ -25,8 +25,8 @@ protected:
 	AVRational m_originVideoTimebase;
 	AVRational m_originAudioTimebase;
 	AVRational m_uniformTimebase;
-	int     m_iUpdateInterval = 0; //ms
-	int64_t m_iCurrentPlayPosition = 0;
+	int        m_iUpdateInterval = 0; //ms
+	int64_t    m_iCurrentPlayPosition = 0;
 };
 
 class SyncVideo : public IAVSync
@@ -44,6 +44,7 @@ public:
 private:
 	std::chrono::steady_clock::time_point m_timeLastUpdateAudio;
 	FrameHolderPtr                        m_pCachedAudioFrame;
+	int                                   m_iAudioUpdateInterval = 150;
 };
 
 class SyncAV : public SyncAudio
@@ -55,4 +56,5 @@ public:
 private:
 	std::chrono::steady_clock::time_point m_timeLastSync;
 	FrameHolderPtr                        m_pCachedVideoFrame;
+	int                                   m_iSyncInterval = 500;
 };

@@ -73,7 +73,7 @@ SyncAudio::SyncAudio()
 
 int SyncAudio::Update(AVSyncParam* pParam)
 {
-	if (pParam->now - m_timeLastUpdateAudio < std::chrono::milliseconds(150))
+	if (pParam->now - m_timeLastUpdateAudio < std::chrono::milliseconds(m_iAudioUpdateInterval))
 	{
 		return CodeOK;
 	}
@@ -108,12 +108,15 @@ again:
 		{
 			goto again;
 		}
+		else if (n == CodeOK)
+		{
+			m_pCachedAudioFrame = std::move(frame);
+			m_iAudioUpdateInterval = 150;
+		}
 		else if (n == CodeRejection)
 		{
 			m_pCachedAudioFrame = std::move(frame);
-		}
-		else if (n == CodeOK)
-		{
+			m_iAudioUpdateInterval = 450;
 		}
 		else
 		{
@@ -152,7 +155,7 @@ int SyncAV::Update(AVSyncParam* pParam)
 		return CodeNo;
 	}
 
-	if (pParam->now - m_timeLastSync > std::chrono::milliseconds(500))
+	if (pParam->now - m_timeLastSync > std::chrono::milliseconds(m_iSyncInterval))
 	{
 		bNeedSync = true;
 		m_timeLastSync = pParam->now;
@@ -202,12 +205,20 @@ again:
 				{
 					LOG() << "render late image";
 				}
+
+				m_iSyncInterval = 200;
 			}
 			else if (videoPts > audioPts + m_iUpdateInterval / 2)
 			{
 				LOG() << "too early";
 				m_pCachedVideoFrame = std::move(videoFrame);
+
+				m_iSyncInterval = 100;
 				return CodeOK;
+			}
+			else
+			{
+				m_iSyncInterval = 800;
 			}
 		}
 

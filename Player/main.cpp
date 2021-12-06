@@ -151,12 +151,9 @@ public:
 int main(int argc, char* argv[])
 {
 	ChooseOpenGL();
-
-	QApplication app(argc, argv);
 	av_log_set_callback(my_log_callback);
 
-	//testPlayWav();
-	//return 0;
+	QApplication app(argc, argv);
 
 	QWidget w;
 	auto pScene = new QGraphicsScene(&w);
@@ -194,13 +191,21 @@ int main(int argc, char* argv[])
 	player.InitVideoRender(&w);
 	player.InitAudioRender(nullptr);
 
-	//player.StartPlay("D:/迅雷下载/阳光电影www.ygdy8.com.神奇女侠1984.2020.BD.1080P.国英双语双字.mkv");
-	//player.StartPlay("D:/迅雷下载/[阳光电影www.ygdy8.com].了不起的盖茨比.BD.720p.中英双字幕.rmvb");
-	player.StartPlay("D:/迅雷下载/1/1/1.mp4");
-	//player.StartPlay("D:/迅雷云盘/楚门的世界.1080p.国英双语.BD中英双字/楚门的世界.1080p.国英双语.BD中英双字[66影视www.66Ys.Co].mp4");
-	//player.StartPlay("D:/迅雷云盘/Veep (2012) - S07E07 - Veep (1080p BluRay x265 Silence).mkv");
-	//player.StartPlay("https://newcntv.qcloudcdn.com/asp/hls/main/0303000a/3/default/4f7655094036437c8ec19bf50ba3a8e0/main.m3u8?maxbr=2048");
-	
+	const char* pFile = nullptr;
+	if (argc > 1)
+	{
+		pFile = argv[1];
+	}
+	else
+	{
+		pFile = "D:/迅雷下载/[阳光电影www.ygdy8.com].了不起的盖茨比.BD.720p.中英双字幕.rmvb";
+		pFile = "D:/迅雷云盘/楚门的世界.1080p.国英双语.BD中英双字/楚门的世界.1080p.国英双语.BD中英双字[66影视www.66Ys.Co].mp4";
+		pFile = "https://newcntv.qcloudcdn.com/asp/hls/main/0303000a/3/default/4f7655094036437c8ec19bf50ba3a8e0/main.m3u8?maxbr=2048";
+		pFile = "D:/迅雷云盘/Veep (2012) - S07E07 - Veep (1080p BluRay x265 Silence).mkv";
+		pFile = "D:/迅雷下载/阳光电影www.ygdy8.com.神奇女侠1984.2020.BD.1080P.国英双语双字.mkv";
+	}
+	player.StartPlay(pFile);
+
 	auto result = app.exec();
 
 	player.StopPlay();

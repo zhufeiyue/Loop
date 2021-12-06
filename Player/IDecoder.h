@@ -76,4 +76,7 @@ public:
 	virtual int DestroyDecoder(Callback) = 0;
 	virtual int Seek(int64_t, int64_t, Callback) = 0;
 	virtual int GetNextFrame(FrameHolderPtr&, int) = 0;
+
+	virtual bool EnableVideo(bool) = 0;
+	virtual bool EnableAudio(bool) = 0;
 };
