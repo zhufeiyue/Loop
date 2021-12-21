@@ -75,6 +75,7 @@ public:
 	virtual int StopPlay();
 	virtual int Seek(int64_t);
 	virtual int Pause(bool);
+	virtual int SetSpeed(int);
 	virtual int GetDuration(int64_t&) const;
 	virtual int GetCurrentPos(int64_t&) const;
 	virtual bool IsSupportSeek() const;

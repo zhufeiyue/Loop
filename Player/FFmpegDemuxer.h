@@ -9,6 +9,9 @@ extern "C"
 #include <libswresample/swresample.h>
 #include <libavutil/avstring.h>
 #include <libavutil/imgutils.h>
+#include <libavutil/opt.h>
+#include <libavfilter/buffersrc.h>
+#include <libavfilter/buffersink.h>
 }
 
 #include <cassert>
@@ -19,7 +22,7 @@ extern "C"
 #include <map>
 #include <mutex>
 
-void PrintFFmpegError(int code);
+void PrintFFmpegError(int code, const char* strPrefix = nullptr);
 
 class FFmpegDemuxer
 {

@@ -177,6 +177,16 @@ int Player::Pause(bool bPause)
 	return CodeOK;
 }
 
+int Player::SetSpeed(int playSpeed)
+{
+	if (!m_pAVSync)
+	{
+		return CodeNo;
+	}
+
+	return CodeOK;
+}
+
 int Player::GetDuration(int64_t& duration) const
 {
 	auto iter = m_mediaInfo.find("duration");

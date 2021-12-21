@@ -12,11 +12,18 @@ static int InterruptCB(void* para)
 	return 0;
 }
 
-void PrintFFmpegError(int code)
+void PrintFFmpegError(int code, const char* strPrefix)
 {
 	char buf[64] = { 0 };
 	av_make_error_string(buf, sizeof(buf), code);
-	LOG() << buf;
+	if (strPrefix)
+	{
+		LOG() << strPrefix << ": " << buf;
+	}
+	else
+	{
+		LOG() << buf;
+	}
 }
 
 FFmpegDemuxer::FFmpegDemuxer(std::string strMediaAddress)
@@ -44,7 +51,7 @@ FFmpegDemuxer::FFmpegDemuxer(std::string strMediaAddress)
 	n = avformat_open_input(&m_pFormatContext, strMediaAddress.c_str(), NULL, &opts);
 	if (n != 0)
 	{
-		PrintFFmpegError(n);
+		PrintFFmpegError(n, __FUNCTION__ " avformat_open_input");
 		LOG() << strMediaAddress;
 		return;
 	}
@@ -52,7 +59,7 @@ FFmpegDemuxer::FFmpegDemuxer(std::string strMediaAddress)
 	n = avformat_find_stream_info(m_pFormatContext, NULL);
 	if (n < 0)
 	{
-		PrintFFmpegError(n);
+		PrintFFmpegError(n, __FUNCTION__ " avformat_find_stream_info");
 		return;
 	}
 
@@ -168,7 +175,7 @@ int FFmpegDemuxer::DemuxVideo(AVPacket& got)
 		n = av_read_frame(m_pFormatContext, &packet);
 		if (n < 0)
 		{
-			PrintFFmpegError(n);
+			PrintFFmpegError(n, __FUNCTION__ " av_read_frame");
 			return n;
 		}
 
@@ -240,7 +247,7 @@ int FFmpegDemuxer::DemuxAudio(AVPacket& got)
 		n = av_read_frame(m_pFormatContext, &got);
 		if (n < 0)
 		{
-			PrintFFmpegError(n);
+			PrintFFmpegError(n, __FUNCTION__ "av_read_frame");
 			return n;
 		}
 
@@ -445,11 +452,24 @@ int FFmpegDemuxer::Seek(int64_t target_pos, int64_t currPos)
 		maxpts = INT64_MAX;
 	}
 
-	auto result = avformat_seek_file(m_pFormatContext, -1, minpts, ts, maxpts, 0);
+	//auto result = avformat_seek_file(m_pFormatContext, -1, minpts, ts, maxpts, 0);
+	//if (result < 0)
+	//{
+	//	PrintFFmpegError(result, __FUNCTION__ " avformat_seek_file");
+	//	return CodeNo;
+	//}
+
+	auto result = av_seek_frame(m_pFormatContext, -1, ts, 0);
 	if (result < 0)
 	{
-		LOG() << "avformat_seek_file:";
-		PrintFFmpegError(result);
+		PrintFFmpegError(result, __FUNCTION__ " av_seek_frame");
+		return CodeNo;
+	}
+
+	result = avformat_flush(m_pFormatContext);
+	if (result < 0)
+	{
+		PrintFFmpegError(result, __FUNCTION__ " avformat_flush");
 		return CodeNo;
 	}
 
@@ -624,7 +644,7 @@ int FFmpegDecode::CreateDecoder()
 		n = avcodec_open2(m_pVCodecContext, m_pVCodec, NULL);
 		if (n < 0)
 		{
-			PrintFFmpegError(n);
+			PrintFFmpegError(n, "avcodec_open2");
 		}
 	}
 
@@ -636,7 +656,7 @@ int FFmpegDecode::CreateDecoder()
 		n = avcodec_open2(m_pACodecContext, m_pACodec, NULL);
 		if (n < 0)
 		{
-			PrintFFmpegError(n);
+			PrintFFmpegError(n, "avcodec_open2");
 		}
 	}
 
@@ -658,7 +678,7 @@ int FFmpegDecode::DecodeVideo(AVPacket& packet)
 		av_packet_unref(&packet);
 		if (n < 0)
 		{
-			PrintFFmpegError(n);
+			PrintFFmpegError(n, __FUNCTION__ " avcodec_send_packet");
 			// todo is this ok?
 			if (n == AVERROR_INVALIDDATA)
 			{
@@ -671,7 +691,7 @@ int FFmpegDecode::DecodeVideo(AVPacket& packet)
 	n = avcodec_receive_frame(m_pVCodecContext, m_pVFrame);
 	if (n < 0)
 	{
-		PrintFFmpegError(n);
+		PrintFFmpegError(n, __FUNCTION__ " avcodec_receive_frame");
 	}
 
 	return n;
@@ -863,8 +883,7 @@ int FFmpegHWDecode::CreateDecoder()
 			n = av_hwdevice_ctx_create(&hw_device_ctx, type, NULL, NULL, 0);
 			if (n < 0)
 			{
-				LOG() << "av_hwdevice_ctx_create:";
-				PrintFFmpegError(n);
+				PrintFFmpegError(n, "av_hwdevice_ctx_create");
 				return false;
 			}
 
@@ -876,8 +895,7 @@ int FFmpegHWDecode::CreateDecoder()
 			n = avcodec_open2(m_pVCodecContext, m_pVCodec, &opts);
 			if (n < 0)
 			{
-				LOG() << "avcodec_open2:";
-				PrintFFmpegError(n);
+				PrintFFmpegError(n, "avcodec_open2");
 
 				av_buffer_unref(&hw_device_ctx);
 				av_buffer_unref(&(m_pVCodecContext->hw_device_ctx));
@@ -981,7 +999,7 @@ int FFmpegHWDecode::DecodeVideo(AVPacket& packet)
 
 		if (n < 0)
 		{
-			PrintFFmpegError(n);
+			PrintFFmpegError(n, __FUNCTION__ "av_hwframe_transfer_data");
 		}
 	}
 

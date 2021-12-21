@@ -374,8 +374,7 @@ int DecodeFile::DecodeVideoFrame()
 	{
 		m_blankVideoFrame.Free(pFrame);
 
-		LOG() << "av_frame_copy:";
-		PrintFFmpegError(n);
+		PrintFFmpegError(n, __FUNCTION__ " av_frame_copy");
 		return CodeNo;
 	}
 	n = av_frame_copy_props(pFrame->FrameData(), pDecodedImage);
@@ -468,8 +467,7 @@ int DecodeFile::DecodeAudioFrame(int& sampleCountGot)
 	{
 		m_blankAudioFrame.Free(pFrame);
 
-		LOG() << "av_frame_copy error:";
-		PrintFFmpegError(n);
+		PrintFFmpegError(n, __FUNCTION__ " av_frame_copy");
 		return CodeNo;
 	}
 	n = av_frame_copy_props(pFrame->FrameData(), pDecodeSample);

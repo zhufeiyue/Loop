@@ -50,8 +50,8 @@ OpenALDevice::~OpenALDevice()
 		}
 
 		alSourcei(m_source, AL_BUFFER, 0);
-		alDeleteBuffers(sizeof(m_buffer) / sizeof(m_buffer[0]), m_buffer);
 		alDeleteSources(1, &m_source);
+		alDeleteBuffers(sizeof(m_buffer) / sizeof(m_buffer[0]), m_buffer);
 
 		alcMakeContextCurrent(NULL);
 		alcDestroyContext(m_pContext);

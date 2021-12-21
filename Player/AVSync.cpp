@@ -116,7 +116,7 @@ again:
 		else if (n == CodeRejection)
 		{
 			m_pCachedAudioFrame = std::move(frame);
-			m_iAudioUpdateInterval = 450;
+			m_iAudioUpdateInterval = 400;
 		}
 		else
 		{
@@ -206,14 +206,18 @@ again:
 					LOG() << "render late image";
 				}
 
-				m_iSyncInterval = 200;
+				m_iSyncInterval -= 100;
+				if (m_iSyncInterval < 200)
+					m_iSyncInterval = 200;
 			}
 			else if (videoPts > audioPts + m_iUpdateInterval / 2)
 			{
 				LOG() << "too early";
 				m_pCachedVideoFrame = std::move(videoFrame);
 
-				m_iSyncInterval = 100;
+				m_iSyncInterval -= 100;
+				if (m_iSyncInterval < 200)
+					m_iSyncInterval = 200;
 				return CodeOK;
 			}
 			else

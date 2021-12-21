@@ -3,6 +3,14 @@
 #include "IRender.h"
 #include "FFmpegDemuxer.h"
 
+enum class PlaySpeed
+{
+	Speed_0_5x,
+	Speed_1X,
+	Speed_2X,
+	Speed_1_5x
+};
+
 struct AVSyncParam
 {
 	IDecoder* pDecoder = nullptr;
