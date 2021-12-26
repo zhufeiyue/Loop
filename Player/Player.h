@@ -1,5 +1,6 @@
 #pragma once
 #include <mutex>
+#include "PlayerTimer.h"
 #include "IRender.h"
 #include "IDecoder.h"
 #include "AVSync.h"
@@ -101,7 +102,7 @@ protected:
 	std::unique_ptr<IRender> m_pAudioRender;
 	std::unique_ptr<IAVSync> m_pAVSync;
 	
-	QTimer* m_pTimer = nullptr;
+	PlayerTimer* m_pTimer = nullptr;
 	bool m_bInited = false;
 	bool m_bPlaying = false;
 	bool m_bSeeking = false;

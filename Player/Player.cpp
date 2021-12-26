@@ -274,28 +274,23 @@ void Player::OnDecoderInited(quint64 key)
 	}
 
 	// start play timer
-	int timerInterval = 40;
+	double videoRate = 25;
 	iter = value->find("videoRate");
 	if (iter != value->end())
 	{
-		double videoRate = iter->second.to<double>();
-		if (videoRate > 0) 
-		{
-			timerInterval = static_cast<int> (std::round(1000.0 / videoRate));
-		}
+		videoRate = iter->second.to<double>();
 	}
 
 	if (!m_pTimer)
 	{
-		m_pTimer = new QTimer();
-		m_pTimer->setTimerType(Qt::PreciseTimer);
+		m_pTimer = new PlayerTimer(this);
 		QObject::connect(m_pTimer, SIGNAL(timeout()), this, SLOT(OnTimeout()));
 	}
 	if (m_pTimer->isActive())
 	{
 		m_pTimer->stop();
 	}
-	m_pTimer->setInterval(timerInterval);
+	m_pTimer->SetRate(videoRate);
 
 	// create av sync
 	if (m_bHasVideo && !m_bHasAudio)
@@ -316,7 +311,7 @@ void Player::OnDecoderInited(quint64 key)
 	{
 		return;
 	}
-	m_pAVSync->SetUpdateInterval(timerInterval);
+	m_pAVSync->SetUpdateInterval(m_pTimer->interval());
 	m_pAVSync->SetMediaInfo(*value);
 
 	m_syncParam.pDecoder = m_pDecoder.get();
@@ -330,11 +325,23 @@ void Player::OnDecoderInited(quint64 key)
 
 void Player::OnDecoderSeek(quint64)
 {
-	m_bSeeking = false;
-	if (m_pTimer)
+	if (m_bPlaying)
 	{
-		m_pTimer->start();
-		m_bPlaying = true;
+		// seek前，处于播放状态。直接开始播放，启动定时器即可
+		if (m_pTimer)
+			m_pTimer->start();
+		m_bSeeking = false;
+	}
+	else
+	{
+		// seek前，处于暂停状态。执行两次Update后，大概率可以，至少更新显示一帧视频，而音频依然处于暂停状态
+		QTimer::singleShot(0, [this]() {
+			OnTimeout(); 
+		});
+		QTimer::singleShot(50, [this]() {
+			OnTimeout(); 
+			m_bSeeking = false; 
+		});
 	}
 }
 

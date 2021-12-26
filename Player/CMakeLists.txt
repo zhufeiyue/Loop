@@ -23,9 +23,11 @@ endif(CMAKE_CL_64)
 
 set(PlayerSource main.cpp)
 list(APPEND PlayerSource FFmpegDemuxer.cpp FFmpegDemuxer.h FFmpegMuxer.cpp FFmpegMuxer.h FFmpegFilter.h FFmpegFilter.cpp)
-list(APPEND PlayerSource Player.h Player.cpp DecodeFile.h DecodeFile.cpp IDecoder.cpp IRender.h)
+list(APPEND PlayerSource DecodeFile.h DecodeFile.cpp IDecoder.cpp IRender.h)
 list(APPEND PlayerSource RenderOpenAL.h RenderOpenAL.cpp WavDemuxer.h WavDemuxer.cpp)
 list(APPEND PlayerSource AVSync.h AVSync.cpp)
+list(APPEND PlayerSource Player.h Player.cpp)
+list(APPEND PlayerSource PlayerTimer.h PlayerTimer.cpp)
 
 #aux_source_directory(./view MainQtSource)
 set(PlayerQtSource RenderGraphicsView.cpp RenderGraphicsView.h )

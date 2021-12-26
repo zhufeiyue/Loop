@@ -13,6 +13,7 @@
 #include <common/Log.h>
 
 #include "Player.h"
+#include "PlayerTimer.h"
 #include "RenderOpenAL.h"
 #include "RenderOpenGLWidget.h"
 #include "FFmpegFilter.h"
@@ -156,8 +157,10 @@ int main(int argc, char* argv[])
 
 	QApplication app(argc, argv);
 
-	testFilter();
-	return 0;
+	//testPlayWav();
+	//return 0;
+	//testFilter();
+	//return 0;
 	QWidget w;
 	auto pScene = new QGraphicsScene(&w);
 	auto pView = new QGraphicsView(pScene, &w);
@@ -206,7 +209,7 @@ int main(int argc, char* argv[])
 		pFile = "D:/迅雷下载/[阳光电影www.ygdy8.com].了不起的盖茨比.BD.720p.中英双字幕.rmvb";
 		pFile = "D:/迅雷云盘/楚门的世界.1080p.国英双语.BD中英双字/楚门的世界.1080p.国英双语.BD中英双字[66影视www.66Ys.Co].mp4";
 		pFile = "D:/迅雷下载/[久久美剧www.jjmjtv.com]星际之门.宇宙.Stargate.Universe.S01E18.Chi_Eng.BD-HDTV.AC3.1024X576.x264-YYeTs.mkv";
-		pFile = "D:/迅雷云盘/The.Witcher.S02E01.A.Grain.of.Truth.1080p.NF.WEB-DL.DDP5.1.Atmos.x264-TEPES.mkv";
+		//pFile = "D:/迅雷云盘/The.Witcher.S02E01.A.Grain.of.Truth.1080p.NF.WEB-DL.DDP5.1.Atmos.x264-TEPES.mkv";
 	}
 	player.StartPlay(pFile);
 

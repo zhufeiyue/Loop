@@ -22,8 +22,8 @@ public:
 
 	int Configure(int bitPerSample, int samplePerSecond, int channel, int channelMask);
 	int Play();
-	int Pause(bool);
 	int Stop();
+	int Pause(bool);
 	int Reset();
 	int SetVolume(float v);
 	int GetVolume(float& v);
@@ -38,6 +38,7 @@ private:
 	ALCcontext* m_pContext = NULL;
 
 	ALuint m_source = 0;
+	// 记录source应该处于什么状态，而非实际状态
 	ALint m_sourceState = 0;
 
 	ALuint m_buffer[4] = { 0 };

@@ -168,12 +168,13 @@ int OpenALDevice::Pause(bool bPause)
 		if (bPause)
 		{
 			alSourcePause(m_source);
+			m_sourceState = AL_PAUSED;
 		}
 		else
 		{
 			alSourcePlay(m_source);
+			m_sourceState = AL_PLAYING;
 		}
-		alGetSourcei(m_source, AL_SOURCE_STATE, &m_sourceState);
 	}
 
 	return CodeOK;

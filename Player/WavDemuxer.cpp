@@ -12,13 +12,13 @@ int WavDemuxerFile::ReadFormat()
 
 	if (CodeOK != Seek(0))
 	{
-		return CodeOK;
+		return CodeNo;
 	}
 
 	// RIFF
 	if (CodeOK != Read(buf, 8, got) || got != 8)
 	{
-		return CodeOK;
+		return CodeNo;
 	}
 	if (0 != strncmp((char*)buf, "RIFF", 4))
 	{
@@ -29,7 +29,7 @@ int WavDemuxerFile::ReadFormat()
 	// WAVE fmt
 	if (CodeOK != Read(buf, 12, got) || got != 12)
 	{
-		return CodeOK;
+		return CodeNo;
 	}
 	if (0 != strncmp((char*)buf, "WAVE", 4) ||
 		0 != strncmp((char*)buf + 4, "fmt ", 4))
@@ -110,7 +110,7 @@ int WavDemuxerFile::Read(uint8_t* pBuf, uint32_t want, uint32_t& got)
 	m_fileIn.read((char*)pBuf, want);
 	if (m_fileIn.fail())
 	{
-		return CodeOK;
+		return CodeNo;
 	}
 
 	got = (uint32_t)m_fileIn.gcount();
