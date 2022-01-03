@@ -1,6 +1,23 @@
 #include "AVSync.h"
 #include <common/EventLoop.h>
 
+double GetSpeedByEnumValue(PlaySpeed speed)
+{
+	switch (speed)
+	{
+	case PlaySpeed::Speed_0_5X:
+		return 0.5;
+	case PlaySpeed::Speed_1X:
+		return 1.0;
+	case PlaySpeed::Speed_1_5X:
+		return 1.5;
+	case PlaySpeed::Speed_2X:
+		return 2.0;
+	default:
+		return 1.0;
+	}
+}
+
 int IAVSync::SetMediaInfo(Dictionary dic)
 {
 	if (dic.contain_key_value("hasVideo", 1))
@@ -71,6 +88,24 @@ SyncAudio::SyncAudio()
 	m_timeLastUpdateAudio = std::chrono::steady_clock::now() - std::chrono::seconds(1);
 }
 
+int SyncAudio::ProcessVolumeFilter(FilterAudio* pFilter, FrameHolderPtr& frame)
+{
+	if (pFilter)
+	{
+		return pFilter->Process(frame->FrameData());
+	}
+	return CodeOK;
+}
+
+int SyncAudio::ProcessSpeedFilter(FilterAudio* pFilter, FrameHolderPtr& frame)
+{
+	if (pFilter)
+	{
+		return pFilter->Process(frame->FrameData());
+	}
+	return CodeOK;
+}
+
 int SyncAudio::Update(AVSyncParam* pParam)
 {
 	if (pParam->now - m_timeLastUpdateAudio < std::chrono::milliseconds(m_iAudioUpdateInterval))
@@ -83,7 +118,6 @@ int SyncAudio::Update(AVSyncParam* pParam)
 	int n = 0;
 
 again:
-	// 得到已解码的音频帧
 	if (m_pCachedAudioFrame)
 	{
 		frame = std::move(m_pCachedAudioFrame);
@@ -92,17 +126,23 @@ again:
 	else
 	{
 		n = pParam->pDecoder->GetNextFrame(frame, 1);
+		if (n == CodeOK && pParam->pFilterSpeed)
+		{
+			n = ProcessSpeedFilter(pParam->pFilterSpeed, frame);
+			if (n == CodeAgain)
+				goto again;
+		}
 	}
 
-	// 渲染
 	if (n == CodeOK)
 	{
-		// pts转换
+		// pts rescale
 		auto pts = frame->FrameData()->pts;
 		pts = av_rescale_q(pts, m_originAudioTimebase, m_uniformTimebase);
 		frame->SetUniformPTS(pts);
 		m_iCurrentPlayPosition = pts;
 
+		// render audio
 		n = pParam->pAudioRender->UpdataFrame(frame);
 		if (n == CodeAgain)
 		{

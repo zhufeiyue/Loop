@@ -35,6 +35,16 @@ int PlayerTimer::SetRate(double rate)
 	timer_ceil->setTimerType(Qt::PreciseTimer);
 	QObject::connect(timer_ceil, SIGNAL(timeout()), this, SIGNAL(timeout()), Qt::DirectConnection);
 
+	auto bIsRunning = isActive();
+	if (m_timers[0].first)
+	{
+		m_timers[0].first->deleteLater();
+	}
+	if (m_timers[1].first)
+	{
+		m_timers[1].first->deleteLater();
+	}
+
 	const int kPeriod = static_cast<int>(3 * rate);
 	int count = std::round(kPeriod * abs_floor_2_real);
 	m_timers[0] = std::make_pair(timer_floor, kPeriod - count);
@@ -49,6 +59,11 @@ int PlayerTimer::SetRate(double rate)
 	else
 	{
 		QObject::connect(this, SIGNAL(timeout()), this, SLOT(OnTimeout()));
+	}
+
+	if (bIsRunning)
+	{
+		start();
 	}
 
 	return CodeOK;

@@ -13,12 +13,16 @@ static Nursery<T>& GetNursery()
 
 Player::Player(QObject* pParent) :QObject(pParent)
 {
-	QThread::currentThread()->setPriority(QThread::HighestPriority);
+	//QThread::currentThread()->setPriority(QThread::HighestPriority);
 }
 
 Player::~Player()
 {
-	QThread::currentThread()->setPriority(QThread::NormalPriority);
+	//QThread::currentThread()->setPriority(QThread::NormalPriority);
+	if (m_pTimer)
+	{
+		m_pTimer->stop();
+	}
 }
 
 int Player::StartPlay(std::string strMediaPath)
@@ -179,12 +183,62 @@ int Player::Pause(bool bPause)
 
 int Player::SetSpeed(int playSpeed)
 {
-	if (!m_pAVSync)
+	if (!m_pTimer)
 	{
 		return CodeNo;
 	}
 
+	double videoRate = 25;
+	auto iter = m_mediaInfo.find("videoRate");
+	if (iter != m_mediaInfo.end())
+	{
+		videoRate = iter->second.to<double>();
+	}
+
+	m_playSpeed = (PlaySpeed)playSpeed;
+	double dSpeed = GetSpeedByEnumValue(m_playSpeed);
+	videoRate *= dSpeed;
+	
+	m_pTimer->SetRate(videoRate);
+
+	if (m_playSpeed == PlaySpeed::Speed_1X)
+	{
+		m_pSpeedFilter.reset();
+		m_syncParam.pFilterSpeed = nullptr;
+		return CodeOK;
+	}
+
+	return ApplyAudioSpeedFilter(dSpeed);
+}
+
+int Player::GetSpeed(int& playSpeed)
+{
+	playSpeed = (int)m_playSpeed;
 	return CodeOK;
+}
+
+int Player::SetVolume(int playVolume)
+{
+	if (m_pAudioRender)
+	{
+		return m_pAudioRender->GetVolume(playVolume);
+	}
+	else
+	{
+		return CodeNo;
+	}
+}
+
+int Player::GetVolume(int& playVolume)
+{
+	if (m_pAudioRender)
+	{
+		return m_pAudioRender->GetVolume(playVolume);
+	}
+	else
+	{
+		return CodeNo;
+	}
 }
 
 int Player::GetDuration(int64_t& duration) const
@@ -273,7 +327,6 @@ void Player::OnDecoderInited(quint64 key)
 		}
 	}
 
-	// start play timer
 	double videoRate = 25;
 	iter = value->find("videoRate");
 	if (iter != value->end())
@@ -281,6 +334,7 @@ void Player::OnDecoderInited(quint64 key)
 		videoRate = iter->second.to<double>();
 	}
 
+	// timer; play loop
 	if (!m_pTimer)
 	{
 		m_pTimer = new PlayerTimer(this);
@@ -292,7 +346,7 @@ void Player::OnDecoderInited(quint64 key)
 	}
 	m_pTimer->SetRate(videoRate);
 
-	// create av sync
+	// avsync; control
 	if (m_bHasVideo && !m_bHasAudio)
 	{
 		m_pAVSync.reset(new SyncVideo());
@@ -303,8 +357,6 @@ void Player::OnDecoderInited(quint64 key)
 	}
 	else if (m_bHasVideo && m_bHasAudio)
 	{
-		//m_pAVSync.reset(new SyncVideo());
-		//m_pAVSync.reset(new SyncAudio());
 		m_pAVSync.reset(new SyncAV());
 	}
 	else
@@ -321,6 +373,8 @@ void Player::OnDecoderInited(quint64 key)
 	m_bInited = true;
 	m_bPlaying = true;
 	m_pTimer->start();
+
+	SetSpeed((int)PlaySpeed::Speed_2X);
 }
 
 void Player::OnDecoderSeek(quint64)
@@ -353,6 +407,68 @@ void Player::OnTimeout()
 	{
 		m_pTimer->stop();
 	}
+}
+
+int Player::ApplyAudioVolumeFilter(double volume)
+{
+	if (m_bHasAudio)
+	{
+		AVSampleFormat audioFormat = AV_SAMPLE_FMT_NONE;
+		AVRational    audioTimebase;
+		int audioRate = 0;
+		int64_t audioChannelLayout = 0;
+
+		if (m_mediaInfo.contain("audioFormat"))
+		{
+			audioFormat = (AVSampleFormat)m_mediaInfo.find("audioFormat")->second.to<int32_t>(-1);
+		}
+		if (m_mediaInfo.contain("audioRate"))
+		{
+			audioRate = m_mediaInfo.find("audioRate")->second.to<int32_t>();
+		}
+		if (m_mediaInfo.contain("audioChannelLayout"))
+		{
+			audioChannelLayout = m_mediaInfo.find("audioChannelLayout")->second.to<int64_t>();
+		}
+
+		audioTimebase.den = m_mediaInfo.find("audioTimebaseDen")->second.to<int>();
+		audioTimebase.num = m_mediaInfo.find("audioTimebaseNum")->second.to<int>();
+
+		m_pVolumeFilter.reset(new FilterVolume(audioFormat, audioTimebase, audioChannelLayout, audioRate, volume));
+		m_syncParam.pFilterVolume = m_pVolumeFilter.get();
+	}
+	return CodeOK;
+}
+
+int Player::ApplyAudioSpeedFilter(double speed)
+{
+	if (m_bHasAudio)
+	{
+		AVSampleFormat audioFormat = AV_SAMPLE_FMT_NONE;
+		AVRational    audioTimebase;
+		int audioRate = 0;
+		int64_t audioChannelLayout = 0;
+
+		if (m_mediaInfo.contain("audioFormat"))
+		{
+			audioFormat = (AVSampleFormat)m_mediaInfo.find("audioFormat")->second.to<int32_t>(-1);
+		}
+		if (m_mediaInfo.contain("audioRate"))
+		{
+			audioRate = m_mediaInfo.find("audioRate")->second.to<int32_t>();
+		}
+		if (m_mediaInfo.contain("audioChannelLayout"))
+		{
+			audioChannelLayout = m_mediaInfo.find("audioChannelLayout")->second.to<int64_t>();
+		}
+
+		audioTimebase.den = m_mediaInfo.find("audioTimebaseDen")->second.to<int>();
+		audioTimebase.num = m_mediaInfo.find("audioTimebaseNum")->second.to<int>();
+
+		m_pSpeedFilter.reset(new Filter_atempo(audioFormat, audioTimebase, audioChannelLayout, audioRate, speed));
+		m_syncParam.pFilterSpeed = m_pSpeedFilter.get();
+	}
+	return CodeOK;
 }
 
 int Player::InitVideoRender(void* pData)

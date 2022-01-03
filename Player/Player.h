@@ -77,6 +77,9 @@ public:
 	virtual int Seek(int64_t);
 	virtual int Pause(bool);
 	virtual int SetSpeed(int);
+	virtual int GetSpeed(int&);
+	virtual int SetVolume(int);
+	virtual int GetVolume(int&);
 	virtual int GetDuration(int64_t&) const;
 	virtual int GetCurrentPos(int64_t&) const;
 	virtual bool IsSupportSeek() const;
@@ -86,6 +89,10 @@ public:
 	virtual int InitAudioRender(void*);
 	virtual int DestroyVideoRender();
 	virtual int DestroyAudioRender();
+
+private:
+	int ApplyAudioVolumeFilter(double volume);
+	int ApplyAudioSpeedFilter(double speed);
 
 signals:
 	void sigDecoderInited(quint64);
@@ -97,10 +104,12 @@ protected slots:
 	void OnTimeout();
 
 protected:
-	std::unique_ptr<IDecoder> m_pDecoder;
-	std::unique_ptr<IRender> m_pVideoRender;
-	std::unique_ptr<IRender> m_pAudioRender;
-	std::unique_ptr<IAVSync> m_pAVSync;
+	std::unique_ptr<IDecoder>     m_pDecoder;
+	std::unique_ptr<IRender>      m_pVideoRender;
+	std::unique_ptr<IAudioRender> m_pAudioRender;
+	std::unique_ptr<IAVSync>      m_pAVSync;
+	std::unique_ptr<FilterAudio>  m_pVolumeFilter;
+	std::unique_ptr<FilterAudio>  m_pSpeedFilter;
 	
 	PlayerTimer* m_pTimer = nullptr;
 	bool m_bInited = false;
@@ -111,4 +120,5 @@ protected:
 
 	Dictionary  m_mediaInfo;
 	AVSyncParam m_syncParam;
+	PlaySpeed   m_playSpeed = PlaySpeed::Speed_1X;
 };

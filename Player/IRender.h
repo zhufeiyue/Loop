@@ -19,3 +19,10 @@ public:
 	virtual int Reset()                 = 0;
 	virtual int GetRenderTime(int64_t&) = 0;
 };
+
+class IAudioRender : public IRender
+{
+public:
+	virtual int GetVolume(int&) = 0;
+	virtual int SetVolume(int) = 0;
+};

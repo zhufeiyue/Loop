@@ -569,6 +569,41 @@ int RenderOpenAL::GetRenderTime(int64_t& pts)
 	return CodeOK;
 }
 
+int RenderOpenAL::GetVolume(int& iVolume)
+{
+	iVolume = 0;
+	if (!m_pPlayDevice)
+	{
+		return CodeNo;
+	}
+
+	float fVolume = 1.0f;
+	int result = m_pPlayDevice->GetVolume(fVolume);
+	if (result != CodeOK)
+	{
+		return CodeNo;
+	}
+
+	iVolume = std::round(fVolume * 100);
+	return CodeOK;
+}
+
+int RenderOpenAL::SetVolume(int iVolume)
+{
+	if (!m_pPlayDevice)
+	{
+		return CodeNo;
+	}
+
+	if (iVolume < 0)
+		iVolume = 0;
+	else if (iVolume > 100)
+		iVolume = 100;
+
+	float fVolume = iVolume / 100.0f;
+	return m_pPlayDevice->SetVolume(fVolume);
+}
+
 int RenderOpenAL::AppendOpenALData()
 {
 	int result;

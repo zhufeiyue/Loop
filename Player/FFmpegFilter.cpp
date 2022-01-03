@@ -106,6 +106,8 @@ FilterAudio::~FilterAudio()
 
 int FilterAudio::Process(AVFrame* pFrame)
 {
+	AV_BUFFERSRC_FLAG_KEEP_REF;
+
 	int result = 0;
 	result = av_buffersrc_add_frame(m_pBufferContext, pFrame);
 	if (result < 0)
@@ -117,7 +119,16 @@ int FilterAudio::Process(AVFrame* pFrame)
 	result = av_buffersink_get_frame(m_pBufferSinkContext, pFrame);
 	if (result < 0)
 	{
+		if (result == AVERROR(EAGAIN))
+		{
+			return CodeAgain;
+		}
 		PrintFFmpegError(result, "av_buffersink_get_frame");
+		return CodeNo;
+	}
+	else
+	{
+		LOG() << pFrame->pts << " " << pFrame->nb_samples;
 	}
 
 	return CodeOK;

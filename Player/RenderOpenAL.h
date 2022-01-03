@@ -65,7 +65,7 @@ protected:
 	int64_t m_iPts = -1;
 };
 
-class RenderOpenAL : public IRender
+class RenderOpenAL : public IAudioRender
 {
 public:
 	int ConfigureRender(RenderInfo) override;
@@ -76,6 +76,8 @@ public:
 	int Pause(bool) override;
 	int Reset() override;
 	int GetRenderTime(int64_t&) override;
+	int GetVolume(int&) override;
+	int SetVolume(int) override;
 
 protected:
 	int AppendOpenALData();

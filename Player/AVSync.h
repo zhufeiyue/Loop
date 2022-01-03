@@ -2,20 +2,26 @@
 #include "IDecoder.h"
 #include "IRender.h"
 #include "FFmpegDemuxer.h"
+#include "FFmpegFilter.h"
 
 enum class PlaySpeed
 {
-	Speed_0_5x,
+	Speed_0_5X,
 	Speed_1X,
-	Speed_2X,
-	Speed_1_5x
+	Speed_1_5X,
+	Speed_2X
 };
+
+double GetSpeedByEnumValue(PlaySpeed);
 
 struct AVSyncParam
 {
 	IDecoder* pDecoder = nullptr;
 	IRender* pVideoRender = nullptr;
 	IRender* pAudioRender = nullptr;
+	FilterAudio* pFilterVolume = nullptr;
+	FilterAudio* pFilterSpeed = nullptr;
+	PlaySpeed    playSpeed = PlaySpeed::Speed_1X;
 	std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
 };
 
@@ -48,6 +54,10 @@ class SyncAudio : public IAVSync
 public:
 	SyncAudio();
 	int Update(AVSyncParam*) override;
+
+private:
+	int ProcessVolumeFilter(FilterAudio*, FrameHolderPtr&);
+	int ProcessSpeedFilter(FilterAudio*, FrameHolderPtr&);
 
 private:
 	std::chrono::steady_clock::time_point m_timeLastUpdateAudio;

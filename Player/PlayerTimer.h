@@ -29,5 +29,5 @@ private:
 	double m_rate = 24;
 	int m_iWhichTimer = -1;
 	int m_iCountTimer = 0;
-	std::pair<QTimer*, int> m_timers[2];
+	std::pair<QTimer*, int> m_timers[2] = { {nullptr, 0}, {nullptr, 0} };
 };
