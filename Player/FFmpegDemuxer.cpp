@@ -70,8 +70,29 @@ FFmpegDemuxer::FFmpegDemuxer(std::string strMediaAddress)
 		m_bAnnexb = false;
 	}
 	
-	m_iAudioIndex = av_find_best_stream(m_pFormatContext, AVMEDIA_TYPE_AUDIO, -1, -1, NULL, 0);
-	m_iVideoIndex = av_find_best_stream(m_pFormatContext, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
+	int wantAudioStreamIndex = -1;
+	int wantVideoStreamIndex = -1;
+	for (unsigned int i = 0; i < m_pFormatContext->nb_streams; ++i)
+	{
+		auto pStream = m_pFormatContext->streams[i];
+		if (pStream->codecpar->codec_type == AVMEDIA_TYPE_AUDIO)
+		{
+			AVDictionaryEntry* kv = av_dict_get(pStream->metadata, "language", nullptr, AV_DICT_MATCH_CASE);
+			if (kv)
+			{
+				/*
+				* eng英文
+				* chi中文
+				*/
+				if (av_strcasecmp(kv->value, "eng") == 0)
+					wantAudioStreamIndex = (int)i;
+				LOG() << kv->key << ":" << kv->value;
+			}
+		}
+	}
+
+	m_iAudioIndex = av_find_best_stream(m_pFormatContext, AVMEDIA_TYPE_AUDIO, wantAudioStreamIndex, -1, NULL, 0);
+	m_iVideoIndex = av_find_best_stream(m_pFormatContext, AVMEDIA_TYPE_VIDEO, wantVideoStreamIndex, -1, NULL, 0);
 	if (m_iVideoIndex >= 0)
 	{
 		auto codecpar = m_pFormatContext->streams[m_iVideoIndex]->codecpar;
@@ -1137,7 +1158,7 @@ int FFmpegAudioConvert::Configure(int srcSampleRate, uint64_t srcLayout, AVSampl
 int FFmpegAudioConvert::Convert(const uint8_t** ppInData, int incount)
 {
 	/*
-	* 利用swr_convert的性质，转换、缓存，确切数量的音频帧
+	* 利用swr_convert的性质，在转换、缓存后，得到确切数量（m_pFrame->nb_samples）的音频帧
 	*/
 	if (!m_pASwr)
 	{

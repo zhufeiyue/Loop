@@ -12,7 +12,7 @@ enum class PlaySpeed
 	Speed_2X
 };
 
-double GetSpeedByEnumValue(PlaySpeed);
+double GetSpeedByEnumValue(int);
 
 struct AVSyncParam
 {
@@ -35,12 +35,14 @@ public:
 	virtual int SetUpdateInterval(int);
 	virtual int Restet();
 	virtual int64_t GetCurrentPosition();
+	virtual int SetPlaySpeed(PlaySpeed);
 protected:
 	AVRational m_originVideoTimebase;
 	AVRational m_originAudioTimebase;
 	AVRational m_uniformTimebase;
 	int        m_iUpdateInterval = 0; //ms
 	int64_t    m_iCurrentPlayPosition = 0;
+	PlaySpeed  m_playSpeed = PlaySpeed::Speed_1X;
 };
 
 class SyncVideo : public IAVSync

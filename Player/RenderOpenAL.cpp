@@ -1,5 +1,7 @@
 #include "RenderOpenAL.h"
 
+double GetSpeedByEnumValue(int);
+
 OpenALDevice::OpenALDevice(std::string strDeviceName)
 {
 	const char* defaultName = nullptr;
@@ -263,6 +265,7 @@ int OpenALDevice::GetPlayPosition(int64_t& pts)
 	UnqueueBuffer();
 
 	int64_t bufStartPts = m_iBufPts;
+	int32_t bufSpeed = m_iBufSpeed;
 	ALint sampleOffsetOfCurrentBuf = m_iBufSampleCount;
 	if (m_bufferQueue.empty())
 	{
@@ -270,7 +273,7 @@ int OpenALDevice::GetPlayPosition(int64_t& pts)
 	else
 	{
 		bufStartPts = std::get<1>(m_bufferQueue.front());
-
+		bufSpeed = std::get<3>(m_bufferQueue.front());
 		alGetSourcei(m_source, AL_SAMPLE_OFFSET, &sampleOffsetOfCurrentBuf);
 		if (alGetError() != AL_NO_ERROR)
 		{
@@ -279,14 +282,13 @@ int OpenALDevice::GetPlayPosition(int64_t& pts)
 	}
 
 	// ms
-	pts = bufStartPts + 1000 * sampleOffsetOfCurrentBuf / m_iSamplePerSecond;
-
-	//LOG() << pts;
+	pts = bufStartPts + 
+		std::round(GetSpeedByEnumValue(bufSpeed) * 1000 * sampleOffsetOfCurrentBuf / m_iSamplePerSecond);
 
 	return CodeOK;
 }
 
-int OpenALDevice::AppendWavData(BufPtr data, int64_t pts)
+int OpenALDevice::AppendWavData(BufPtr data, int64_t pts, int32_t speed)
 {
 	std::lock_guard<std::mutex> guard(m_lock);
 	ALuint uiBuffer = 0;
@@ -330,8 +332,8 @@ int OpenALDevice::AppendWavData(BufPtr data, int64_t pts)
 	alBufferData(uiBuffer, m_format, data->DataConst(), data->PlayloadSize(), m_iSamplePerSecond);
 	alSourceQueueBuffers(m_source, 1, &uiBuffer);
 
-	// buffer id\buffer pts\buffer size
-	m_bufferQueue.push_back(std::make_tuple(uiBuffer, pts, data->PlayloadSize()));
+	// buffer id,buffer pts,buffer size(in byte),buffer speed
+	m_bufferQueue.push_back(std::make_tuple(uiBuffer, pts, data->PlayloadSize(), speed));
 
 	if (bAutoRePlay) 
 	{
@@ -362,6 +364,7 @@ int OpenALDevice::UnqueueBuffer()
 				{
 					m_iBufPts = std::get<1>(*iter);
 					m_iBufSize = std::get<2>(*iter);
+					m_iBufSpeed = std::get<3>(*iter);
 					m_iBufSampleCount = m_iBufSize / m_iBlockAlign;
 
 					m_bufferQueue.erase(iter);
@@ -381,7 +384,7 @@ int OpenALDevice::UnqueueBuffer()
 }
 
 
-int AudioDataCacheConvert::Convert(const uint8_t** ppInData, int incount, int64_t inPts, int64_t& outPts, bool& bReject)
+int AudioDataCacheConvert::Convert(const uint8_t** ppInData, int incount, int64_t inPts, int64_t& outPts)
 {
 	/*
 	* 利用swr_convert的性质，转换、缓存，不超过一定数量的音频帧
@@ -390,8 +393,6 @@ int AudioDataCacheConvert::Convert(const uint8_t** ppInData, int incount, int64_
 	* 通过bReject获得，当前输入数据是否被处理
 	* 返回值，负数-发生错误，0-需要更多的输入，正数-得到输出帧数
 	*/
-
-	bReject = true;
 
 	if (!m_pASwr)
 	{
@@ -414,9 +415,25 @@ int AudioDataCacheConvert::Convert(const uint8_t** ppInData, int incount, int64_
 			m_iPts = inPts;
 		}
 		n = swr_convert(m_pASwr, m_pFrame->data, 0, ppInData, incount);
-		bReject = false;
 	}
 
+	return n;
+}
+
+int AudioDataCacheConvert::FlushCachedData(int64_t& outPts)
+{
+	if (!m_pASwr || !m_pFrame)
+	{
+		return CodeNo;
+	}
+
+	if (m_iPts == -1)
+	{
+		// no cached data
+		return 0;
+	}
+
+	int n = swr_convert(m_pASwr, m_pFrame->data, m_pFrame->nb_samples, nullptr, 0);
 	return n;
 }
 
@@ -492,14 +509,38 @@ int RenderOpenAL::UpdataFrame(FrameHolderPtr inData)
 		return AppendOpenALData();
 	}
 
-	bool bReject = false;
 	int n = 0;
 	int64_t outPts = 0;
+
+	if (inData->Speed() != m_iAudioDataSpeed)
+	{
+		n = m_pAudioConvert->FlushCachedData(outPts);
+		if (n < 0)
+		{
+			return CodeNo;
+		}
+		if (n == 0)
+		{
+			m_iAudioDataSpeed = inData->Speed();
+		}
+		else
+		{
+			auto audioSize = n * 4;
+			auto pOutFrame = m_pAudioConvert->Frame();
+
+			memcpy(m_pAudioData->Data(), pOutFrame->data[0], audioSize);
+			m_pAudioData->PlayloadSize() = audioSize;
+			m_iAudioDataPts = outPts;
+			m_bAudioDataValid = true;
+
+			return AppendOpenALData();
+		}
+	}
 
 	n = m_pAudioConvert->Convert(
 		(const uint8_t**)inData->FrameData()->data,
 		inData->FrameData()->nb_samples,
-		inData->UniformPTS(), outPts, bReject);
+		inData->UniformPTS(), outPts);
 
 	if (n < 0)
 	{
@@ -608,7 +649,7 @@ int RenderOpenAL::AppendOpenALData()
 {
 	int result;
 
-	result = m_pPlayDevice->AppendWavData(m_pAudioData, m_iAudioDataPts);
+	result = m_pPlayDevice->AppendWavData(m_pAudioData, m_iAudioDataPts, m_iAudioDataSpeed);
 	if (result == CodeOK)
 	{
 		m_bAudioDataValid = false;

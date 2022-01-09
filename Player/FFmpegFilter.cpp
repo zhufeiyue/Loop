@@ -108,6 +108,8 @@ int FilterAudio::Process(AVFrame* pFrame)
 {
 	AV_BUFFERSRC_FLAG_KEEP_REF;
 
+	pFrame->opaque = (void*)pFrame->pts;
+
 	int result = 0;
 	result = av_buffersrc_add_frame(m_pBufferContext, pFrame);
 	if (result < 0)
@@ -128,7 +130,8 @@ int FilterAudio::Process(AVFrame* pFrame)
 	}
 	else
 	{
-		LOG() << pFrame->pts << " " << pFrame->nb_samples;
+		//LOG() << (int64_t)pFrame->opaque << " "<<  pFrame->pts << " " << pFrame->nb_samples;
+		pFrame->pts = (int64_t)pFrame->opaque;
 	}
 
 	return CodeOK;
@@ -277,4 +280,9 @@ Filter_atempo::Filter_atempo(AVSampleFormat audioFormat,
 
 Filter_atempo::~Filter_atempo()
 {
+	if (m_pAtempoContext)
+	{
+		avfilter_free(m_pAtempoContext);
+		m_pAtempoContext = nullptr;
+	}
 }

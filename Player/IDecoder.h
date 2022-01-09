@@ -46,9 +46,20 @@ public:
 		m_iUniformPTS = pts;
 	}
 
+	int32_t Speed()
+	{
+		return m_iSpeed;
+	}
+
+	void SetSpeed(int32_t speed)
+	{
+		m_iSpeed = speed;
+	}
+
 private:
 	AVFrame* m_pFrame = nullptr;
 	int64_t  m_iUniformPTS = 0;
+	int32_t  m_iSpeed = 1;
 };
 
 typedef std::shared_ptr<FrameHolder> FrameHolderPtr;

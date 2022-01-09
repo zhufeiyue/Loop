@@ -187,6 +187,14 @@ int Player::SetSpeed(int playSpeed)
 	{
 		return CodeNo;
 	}
+	if (!m_pAVSync)
+	{
+		return CodeNo;
+	}
+	if (m_playSpeed == (PlaySpeed)playSpeed)
+	{
+		return CodeOK;
+	}
 
 	double videoRate = 25;
 	auto iter = m_mediaInfo.find("videoRate");
@@ -196,7 +204,9 @@ int Player::SetSpeed(int playSpeed)
 	}
 
 	m_playSpeed = (PlaySpeed)playSpeed;
-	double dSpeed = GetSpeedByEnumValue(m_playSpeed);
+	m_pAVSync->SetPlaySpeed(m_playSpeed);
+
+	double dSpeed = GetSpeedByEnumValue(playSpeed);
 	videoRate *= dSpeed;
 	
 	m_pTimer->SetRate(videoRate);
@@ -374,7 +384,7 @@ void Player::OnDecoderInited(quint64 key)
 	m_bPlaying = true;
 	m_pTimer->start();
 
-	SetSpeed((int)PlaySpeed::Speed_2X);
+	SetSpeed((int)PlaySpeed::Speed_1X);
 }
 
 void Player::OnDecoderSeek(quint64)

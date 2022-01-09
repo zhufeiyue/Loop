@@ -1,14 +1,15 @@
 #include "AVSync.h"
 #include <common/EventLoop.h>
 
-double GetSpeedByEnumValue(PlaySpeed speed)
+double GetSpeedByEnumValue(int iSpeed)
 {
+	PlaySpeed speed = (PlaySpeed)iSpeed;
 	switch (speed)
 	{
-	case PlaySpeed::Speed_0_5X:
-		return 0.5;
 	case PlaySpeed::Speed_1X:
 		return 1.0;
+	case PlaySpeed::Speed_0_5X:
+		return 0.5;
 	case PlaySpeed::Speed_1_5X:
 		return 1.5;
 	case PlaySpeed::Speed_2X:
@@ -42,6 +43,17 @@ int IAVSync::SetMediaInfo(Dictionary dic)
 int IAVSync::SetUpdateInterval(int t)
 {
 	m_iUpdateInterval = t;
+	return CodeOK;
+}
+
+int IAVSync::SetPlaySpeed(PlaySpeed speed)
+{
+	if (speed == m_playSpeed)
+	{
+		return CodeNo;
+	}
+	m_playSpeed = speed;
+
 	return CodeOK;
 }
 
@@ -126,11 +138,15 @@ again:
 	else
 	{
 		n = pParam->pDecoder->GetNextFrame(frame, 1);
-		if (n == CodeOK && pParam->pFilterSpeed)
+		if (n == CodeOK)
 		{
-			n = ProcessSpeedFilter(pParam->pFilterSpeed, frame);
-			if (n == CodeAgain)
-				goto again;
+			frame->SetSpeed((int32_t)m_playSpeed);
+			if (pParam->pFilterSpeed)
+			{
+				n = ProcessSpeedFilter(pParam->pFilterSpeed, frame);
+				if (n == CodeAgain)
+					goto again;
+			}
 		}
 	}
 

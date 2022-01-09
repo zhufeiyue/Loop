@@ -28,7 +28,7 @@ public:
 	int SetVolume(float v);
 	int GetVolume(float& v);
 	int GetPlayPosition(int64_t&);
-	int AppendWavData(BufPtr, int64_t pts = 0);
+	int AppendWavData(BufPtr, int64_t pts = 0, int32_t speed = 0);
 
 private:
 	int UnqueueBuffer();
@@ -43,8 +43,9 @@ private:
 
 	ALuint m_buffer[4] = { 0 };
 	std::queue<ALuint> m_bufferUnQueue;
-	std::deque<std::tuple<ALuint, int64_t, uint32_t>> m_bufferQueue;
+	std::deque<std::tuple<ALuint, int64_t, uint32_t, int32_t>> m_bufferQueue;
 	int64_t m_iBufPts         = 0;
+	int32_t m_iBufSpeed       = 1;
 	size_t  m_iBufSize        = 0;
 	size_t  m_iBufSampleCount = 0;
 	std::mutex m_lock;
@@ -59,7 +60,8 @@ private:
 class AudioDataCacheConvert : public FFmpegAudioConvert
 {
 public:
-	int Convert(const uint8_t** ppInData, int incount, int64_t inPts, int64_t& outPts, bool&bReject);
+	int Convert(const uint8_t** ppInData, int incount, int64_t inPts, int64_t& outPts);
+	int FlushCachedData(int64_t& outPts);
 
 protected:
 	int64_t m_iPts = -1;
@@ -88,5 +90,6 @@ private:
 
 	BufPtr  m_pAudioData;
 	int64_t m_iAudioDataPts = 0;
+	int32_t m_iAudioDataSpeed = 1;
 	bool    m_bAudioDataValid = false;
 };
