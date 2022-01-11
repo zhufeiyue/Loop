@@ -1,3 +1,4 @@
+#include <clocale>
 #include <iostream>
 
 #include <common/EventLoop.h>
@@ -58,9 +59,9 @@ int main(int arc, char* argv[])
 			return (int)CodeOK;
 		}, 40, true);
 
-	//auto pHttp = std::make_shared<HttpClient>(loop);
-	//pHttp->Get("httP://tsing-i.com/");
-	//pHttp->Get("https://www.baidu.com/");
+	auto pHttp = std::make_shared<HttpClient>(loop);
+	pHttp->Get("httP://tsing-i.com/");
+	pHttp->Get("https://www.baidu.com/");
 
 	loop.Run();
 

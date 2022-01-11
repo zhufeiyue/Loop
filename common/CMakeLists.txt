@@ -3,7 +3,9 @@
 aux_source_directory(. CommonSourceFile)
 aux_source_directory(./sqlite3 CommonSourceFile)
 
-add_definitions( -bigobj)
+if(MSVC)
+	add_definitions( -bigobj)
+endif()
 
 include_directories(${OpenSSLPath}/include)
 
