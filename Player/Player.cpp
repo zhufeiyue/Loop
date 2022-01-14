@@ -132,7 +132,7 @@ int Player::Seek(int64_t pos)
 
 	if (m_pAVSync)
 	{
-		m_pAVSync->Restet();
+		m_pAVSync->Reset();
 	}
 
 	if (m_pDecoder)

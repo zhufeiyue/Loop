@@ -62,7 +62,7 @@ int64_t IAVSync::GetCurrentPosition()
 	return m_iCurrentPlayPosition; 
 }
 
-int IAVSync::Restet()
+int IAVSync::Reset()
 {
 	return CodeOK;
 }
@@ -187,6 +187,14 @@ again:
 	{
 		return CodeNo;
 	}
+
+	return CodeOK;
+}
+
+int SyncAudio::Reset()
+{
+	m_pCachedAudioFrame.reset();
+	m_iAudioUpdateInterval = 150;
 
 	return CodeOK;
 }

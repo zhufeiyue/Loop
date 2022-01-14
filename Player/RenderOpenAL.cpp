@@ -44,25 +44,42 @@ OpenALDevice::OpenALDevice(std::string strDeviceName)
 
 OpenALDevice::~OpenALDevice()
 {
+	ALenum err = AL_NO_ERROR;
+
 	if (m_pContext)
 	{
 		if (m_sourceState == AL_PLAYING)
 		{
+			alSourcei(m_source, AL_BUFFER, 0);
 			alSourceStop(m_source);
 		}
 
-		alSourcei(m_source, AL_BUFFER, 0);
 		alDeleteSources(1, &m_source);
 		alDeleteBuffers(sizeof(m_buffer) / sizeof(m_buffer[0]), m_buffer);
 
-		alcMakeContextCurrent(NULL);
+		if (!alcMakeContextCurrent(NULL))
+		{
+			LOG() << "alcMakeContextCurrent(NULL) failed";
+		}
 		alcDestroyContext(m_pContext);
+		if (m_pDevice)
+		{
+			err = alcGetError(m_pDevice);
+			if (err != AL_NO_ERROR)
+			{
+				LOG() << "alcDestroyContext " << alcGetString(m_pDevice, err);
+			}
+		}
+
 		m_pContext = NULL;
 	}
 
 	if (m_pDevice)
 	{
-		alcCloseDevice(m_pDevice);
+		if (!alcCloseDevice(m_pDevice))
+		{
+			LOG() << "alcCloseDevice failed";
+		}
 		m_pDevice = NULL;
 	}
 }

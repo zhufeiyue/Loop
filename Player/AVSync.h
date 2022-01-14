@@ -33,7 +33,7 @@ public:
 
 	virtual int SetMediaInfo(Dictionary dic);
 	virtual int SetUpdateInterval(int);
-	virtual int Restet();
+	virtual int Reset();
 	virtual int64_t GetCurrentPosition();
 	virtual int SetPlaySpeed(PlaySpeed);
 protected:
@@ -56,6 +56,7 @@ class SyncAudio : public IAVSync
 public:
 	SyncAudio();
 	int Update(AVSyncParam*) override;
+	int Reset() override;
 
 private:
 	int ProcessVolumeFilter(FilterAudio*, FrameHolderPtr&);
