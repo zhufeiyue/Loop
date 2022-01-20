@@ -7,6 +7,7 @@
 #include <QOpenGLWidget>
 #include <QJsonDocument>
 #include <QSysInfo>
+#include <QQmlApplicationEngine>
 
 #include <filesystem>
 #include <common/Dic.h>
@@ -17,6 +18,8 @@
 #include "RenderOpenAL.h"
 #include "RenderOpenGLWidget.h"
 #include "FFmpegFilter.h"
+
+#include "qml/QuickVideoRender.h"
 
 // 使用的ffmpeg版本为4.3
 static void my_log_callback(void*, int level, const char* format, va_list vl)
@@ -150,10 +153,11 @@ public:
 	QWidget* m_pUI = nullptr;
 };
 
-int main(int argc, char* argv[])
+int testBasePlayer(int argc, char* argv[])
 {
-	ChooseOpenGL();
 	av_log_set_callback(my_log_callback);
+
+	ChooseOpenGL();
 
 	QApplication app(argc, argv);
 
@@ -223,4 +227,30 @@ int main(int argc, char* argv[])
 	player.DestroyAudioRender();
 
 	return result;
+}
+
+int testQmlPlayer(int argc, char* argv[])
+{
+	QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+
+	QGuiApplication app(argc, argv);
+
+	QuickVideoRender::Register();
+
+	QQmlApplicationEngine engine;
+	const QUrl url(QStringLiteral("qrc:/qml/main.qml"));
+	QObject::connect(&engine, &QQmlApplicationEngine::objectCreated, &app, [url](QObject* obj, const QUrl& objUrl) {
+		if (!obj && url == objUrl)
+			QCoreApplication::exit(-1);
+	}, Qt::QueuedConnection);
+	engine.load(url);
+
+	return app.exec();
+}
+
+int main(int argc, char* argv[])
+{
+	testBasePlayer(argc, argv);
+	//testQmlPlayer(argc, argv);
+	return 0;
 }

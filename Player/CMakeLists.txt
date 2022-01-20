@@ -2,7 +2,7 @@
 
 # CMAKE_PREFIX_PATH default is empty
 set(CMAKE_PREFIX_PATH ${QtPath})
-find_package(Qt5 COMPONENTS Core Gui Widgets Network WebSockets REQUIRED)
+find_package(Qt5 COMPONENTS Core Gui Widgets Network WebSockets Quick REQUIRED)
 
 # Find includes in corresponding build directories
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
@@ -18,7 +18,7 @@ set(CMAKE_PREFIX_PATH ${OpenALPath})
 find_package(OpenAL REQUIRED)
 if(OPENAL_FOUND)
 	message("Using " ${OPENAL_INCLUDE_DIR})
-	message( "Using " ${OPENAL_LIBRARY})
+	message("Using " ${OPENAL_LIBRARY})
 	include_directories(${OPENAL_INCLUDE_DIR})
 endif()
 
@@ -33,12 +33,14 @@ list(APPEND PlayerSource PlayerTimer.h PlayerTimer.cpp)
 #aux_source_directory(./view MainQtSource)
 set(PlayerQtSource RenderGraphicsView.cpp RenderGraphicsView.h )
 list(APPEND PlayerQtSource RenderOpenGLWidget.h RenderOpenGLWidget.cpp)
+list(APPEND PlayerQtSource qml/QuickVideoRender.h qml/QuickVideoRender.cpp)
+list(APPEND PlayerQtSource app.qrc)
 
 # WIN32(gui program;need WinMain entry point)
 add_executable (player WIN32 ${PlayerSource} ${PlayerQtSource})
 
 target_link_libraries(player common)
-target_link_libraries(player Qt5::Core Qt5::Widgets Qt5::Gui Qt5::WebSockets)
+target_link_libraries(player Qt5::Core Qt5::Widgets Qt5::Gui Qt5::Quick Qt5::WebSockets)
 target_link_libraries(player avformat avutil avcodec swscale swresample avfilter)
 target_link_libraries(player ${Boost_LIBRARIES})
 target_link_libraries(player ${OPENAL_LIBRARY})
