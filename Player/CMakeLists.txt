@@ -33,6 +33,7 @@ list(APPEND PlayerSource PlayerTimer.h PlayerTimer.cpp)
 #aux_source_directory(./view MainQtSource)
 set(PlayerQtSource RenderGraphicsView.cpp RenderGraphicsView.h )
 list(APPEND PlayerQtSource RenderOpenGLWidget.h RenderOpenGLWidget.cpp)
+list(APPEND PlayerQtSource RenderQuick.h RenderQuick.cpp)
 list(APPEND PlayerQtSource qml/QuickVideoRender.h qml/QuickVideoRender.cpp)
 list(APPEND PlayerQtSource app.qrc)
 

@@ -231,11 +231,12 @@ int testBasePlayer(int argc, char* argv[])
 
 int testQmlPlayer(int argc, char* argv[])
 {
-	QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+	ChooseOpenGL();
 
+	QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 	QGuiApplication app(argc, argv);
 
-	QuickVideoRender::Register();
+	QuickVideoRenderObject::Register();
 
 	QQmlApplicationEngine engine;
 	const QUrl url(QStringLiteral("qrc:/qml/main.qml"));
@@ -245,12 +246,36 @@ int testQmlPlayer(int argc, char* argv[])
 	}, Qt::QueuedConnection);
 	engine.load(url);
 
-	return app.exec();
+	auto rootObj = engine.rootObjects().at(0);
+	auto pVideoRender = rootObj->findChild<QuickVideoRenderObject*>("render1");
+
+	const char* pFile = nullptr;
+	Player player;
+
+	player.InitVideoRender(pVideoRender);
+	player.InitAudioRender(nullptr);
+	if (argc > 1)
+	{
+		pFile = argv[1];
+	}
+	else
+	{
+		pFile = "D:/迅雷下载/[久久美剧www.jjmjtv.com]星际之门.宇宙.Stargate.Universe.S01E18.Chi_Eng.BD-HDTV.AC3.1024X576.x264-YYeTs.mkv";
+	}
+	player.StartPlay(pFile);
+
+	auto result = app.exec();
+
+	player.StopPlay();
+	player.DestroyVideoRender();
+	player.DestroyAudioRender();
+
+	return result;
 }
 
 int main(int argc, char* argv[])
 {
-	testBasePlayer(argc, argv);
-	//testQmlPlayer(argc, argv);
+	//testBasePlayer(argc, argv);
+	testQmlPlayer(argc, argv);
 	return 0;
 }

@@ -110,7 +110,7 @@ void VideoGLWidget::CalculateVertex(int canvasWidth, int canvasHeight)
 	}
 }
 
-const char* VideoGLWidget::VideoGLWidget::GetShaderSoure(int type)
+const char* VideoGLWidget::GetShaderSoure(int type)
 {
 	if (type == GL_VERTEX_SHADER)
 	{
@@ -567,9 +567,6 @@ void VideoGLWidgetNV12::UpdateVideoTexture(int videoWidth, int videoHeight, cons
 
 void VideoGLWidgetNV12::CreateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData)
 {
-	glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
-	glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
-
 	glDeleteTextures(2, m_videoTextureID);
 	glGenTextures(2, m_videoTextureID);
 

@@ -11,10 +11,26 @@ ApplicationWindow {
 
     Rectangle{
         anchors.fill: parent
-        color: "red"
+//        color: "red"
     }
 
     VideoRender{
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.top: parent.top
+        width: parent.width/2
+        height: parent.height/2
+
+        objectName: "render1"
+
+        Component.onCompleted: {
+            console.log("here")
+        }
+    }
+
+    VideoRender{
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        width: parent.width/2
+        height: parent.height/2
     }
 }

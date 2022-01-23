@@ -3,6 +3,7 @@
 #include "RenderGraphicsView.h"
 #include "RenderOpenGLWidget.h"
 #include "RenderOpenAL.h"
+#include "RenderQuick.h"
 
 template<typename T>
 static Nursery<T>& GetNursery()
@@ -483,31 +484,34 @@ int Player::ApplyAudioSpeedFilter(double speed)
 
 int Player::InitVideoRender(void* pData)
 {
-	auto pWidget = (QWidget*)pData;
-	if (!pWidget)
+	auto pObject = (QObject*)pData;
+	auto pWidget = dynamic_cast<QWidget*>(pObject);
+	auto pQuickItem = dynamic_cast<QQuickItem*>(pObject);
+	if (pWidget)
 	{
-		return CodeNo;
-	}
-
-	if (0)
-	{
-		auto pView = pWidget->findChild<QGraphicsView*>();
-		if (!pView)
+		if (0)
 		{
-			return CodeNo;
+			auto pView = pWidget->findChild<QGraphicsView*>();
+			if (!pView)
+			{
+				return CodeNo;
+			}
+			m_pVideoRender.reset(new VideoRenderGraphicsView(pView));
 		}
-		m_pVideoRender.reset(new VideoRenderGraphicsView(pView));
-	}
-	else
-	{
-		auto pGLVidget = pWidget->findChild<VideoGLWidget*>();
-		if (!pGLVidget)
+		else
 		{
-			return CodeNo;
+			auto pGLVidget = pWidget->findChild<VideoGLWidget*>();
+			if (!pGLVidget)
+			{
+				return CodeNo;
+			}
+			m_pVideoRender.reset(new VideoRenderOpenGLWidget(pGLVidget));
 		}
-		m_pVideoRender.reset(new VideoRenderOpenGLWidget(pGLVidget));
 	}
-
+	else if (pQuickItem)
+	{
+		m_pVideoRender.reset(new VideoRenderQuick(pQuickItem));
+	}
 
 	return CodeOK;
 }
