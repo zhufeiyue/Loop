@@ -39,11 +39,9 @@ void RenderRgb::CalculateMat(int w, int h)
 	m_matModelView.setToIdentity();
 	m_matModelView.lookAt(m_eye, QVector3D(0, 0, 0), QVector3D(0, 1.0, 0));
 
-	GLint location = glGetUniformLocation(m_programID, "projMatrix");
-	glUniformMatrix4fv(location, 1, GL_FALSE, m_matProjection.data());
-
-	location = glGetUniformLocation(m_programID, "mvMatrix");
-	glUniformMatrix4fv(location, 1, GL_FALSE, m_matModelView.data());
+	QMatrix4x4 matrix = m_matProjection * m_matModelView;
+	GLint location = glGetUniformLocation(m_programID, "matrix");
+	glUniformMatrix4fv(location, 1, GL_FALSE, matrix.data());
 }
 
 void RenderRgb::CalculateVertex(int canvasWidth, int canvasHeight)
@@ -117,10 +115,9 @@ const char* RenderRgb::GetShaderSoure(int type)
 			"attribute vec4 vertex;\n"
 			"attribute vec2 texCoord;\n"
 			"varying vec2 texc;\n"
-			"uniform mat4 projMatrix;\n"
-			"uniform mat4 mvMatrix;\n"
+			"uniform mat4 matrix;\n"
 			"void main() {\n"
-			"   gl_Position = projMatrix * mvMatrix * vertex;\n"
+			"   gl_Position = matrix * vertex;\n"
 			"	texc = texCoord; \n"
 			"}";
 
@@ -453,10 +450,9 @@ const char* RenderYUV420P::GetShaderSoure(int type)
 			"attribute vec4 vertex;\n"
 			"attribute vec2 texCoord;\n"
 			"varying vec2 texCoordOut;\n"
-			"uniform mat4 projMatrix;\n"
-			"uniform mat4 mvMatrix;\n"
+			"uniform mat4 matrix;\n"
 			"void main() {\n"
-			"   gl_Position = projMatrix * mvMatrix * vertex;\n"
+			"   gl_Position = matrix * vertex;\n"
 			"	texCoordOut = texCoord; \n"
 			"}";
 
@@ -607,10 +603,9 @@ const char* RenderNV12::GetShaderSoure(int type)
 			"attribute vec4 vertex;\n"
 			"attribute vec2 texCoord;\n"
 			"varying vec2 texCoordOut;\n"
-			"uniform mat4 projMatrix;\n"
-			"uniform mat4 mvMatrix;\n"
+			"uniform mat4 matrix;\n"
 			"void main() {\n"
-			"   gl_Position = projMatrix * mvMatrix * vertex;\n"
+			"   gl_Position = matrix * vertex;\n"
 			"	texCoordOut = texCoord; \n"
 			"}";
 
