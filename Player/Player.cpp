@@ -500,7 +500,7 @@ int Player::InitVideoRender(void* pData)
 		}
 		else
 		{
-			auto pGLVidget = pWidget->findChild<VideoGLWidget*>();
+			auto pGLVidget = pWidget->findChild<VideoOpenGLWidget*>();
 			if (!pGLVidget)
 			{
 				return CodeNo;

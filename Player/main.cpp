@@ -181,9 +181,7 @@ int testBasePlayer(int argc, char* argv[])
 	pView->setFrameShape(QFrame::NoFrame); // remove border
 	pView->setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
 
-	//auto pGLWidget = new VideoGLWidget(nullptr);
-	auto pGLWidget = new VideoGLWidgetNV12(nullptr);
-	//auto pGLWidget = new VideoGLWidgetYUV420P(nullptr);
+	auto pGLWidget = new VideoOpenGLWidget(nullptr);
 
 	auto pLayout = new QGridLayout(&w);
 	pLayout->setContentsMargins(0, 0, 0, 0);
@@ -275,7 +273,7 @@ int testQmlPlayer(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
-	//testBasePlayer(argc, argv);
-	testQmlPlayer(argc, argv);
+	testBasePlayer(argc, argv);
+	//testQmlPlayer(argc, argv);
 	return 0;
 }

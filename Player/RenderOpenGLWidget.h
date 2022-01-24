@@ -7,14 +7,21 @@
 
 #include "FFmpegDemuxer.h"
 
-// render rgba data
-class VideoGLWidget : public QOpenGLWidget, protected QOpenGLFunctions
+class RenderRgb : protected QOpenGLFunctions
 {
-	Q_OBJECT
 public:
-	explicit VideoGLWidget(QWidget* parent);
-	~VideoGLWidget();
-	void SetVideoSize(int w, int h);
+	explicit RenderRgb();
+	~RenderRgb();
+
+	bool IsInited() { return m_bInited; }
+
+	void SetIsOpenGLES(bool);
+	void SetSize(int video_width, int video_height, int canvas_width, int canvas_height);
+
+	virtual void Init();
+	virtual void Destroy();
+	virtual void Paint();
+	virtual void Resize(int, int);
 	virtual void UpdateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData, const int* pLineSize);
 
 protected:
@@ -23,12 +30,6 @@ protected:
 
 	void CalculateMat(int canvasWidth, int canvasHeight);
 	void CalculateVertex(int canvasWidth, int canvasHeight);
-
-protected:
-	void cleanup();
-	void initializeGL() override;
-	void resizeGL(int, int) override;
-	void paintGL() override;
 
 protected:
 	GLuint m_programID        = 0;
@@ -48,43 +49,54 @@ protected:
 	int m_iVideoHeight = 0;
 	GLfloat* m_pQuadVertices = nullptr;
 	bool m_bClearBackground = true;
-	bool m_bIsOpenGLES = true;
+	bool m_bIsOpenGLES = false;
+	bool m_bInited = false;
 };
 
-// render yuv420p data
-class VideoGLWidgetYUV420P : public VideoGLWidget
+class RenderYUV420P : public RenderRgb
 {
 public:
-	explicit VideoGLWidgetYUV420P(QWidget*);
-	void UpdateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData, const int* pLineSize);
-
+	void Resize(int, int);
+	void UpdateVideoTexture(int, int, const uint8_t* const*, const int*);
 protected:
-	void CreateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData);
+	void CreateVideoTexture(int, int, const uint8_t* const*);
 	const char* GetShaderSoure(int);
-
-protected:
-	void resizeGL(int, int);
 };
 
-// render nv12 data
-class VideoGLWidgetNV12 : public VideoGLWidget
+class RenderNV12 : public RenderRgb
 {
 public:
-	explicit VideoGLWidgetNV12(QWidget*);
-	void UpdateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData, const int* pLineSize);
+	void Resize(int, int);
+	void UpdateVideoTexture(int, int, const uint8_t* const*, const int*);
 
 protected:
-	void CreateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData);
+	void CreateVideoTexture(int, int, const uint8_t* const*);
 	const char* GetShaderSoure(int);
+};
 
+class VideoOpenGLWidget : public QOpenGLWidget
+{
+	Q_OBJECT
+public:
+	explicit VideoOpenGLWidget(QWidget* parent);
+	~VideoOpenGLWidget();
+	AVPixelFormat GetSupportedPixformat();
+
+	void SetVideoSize(int, int);
+	void UpdateTexture(int, int, const uint8_t* const*, const int*);
 protected:
-	void resizeGL(int, int);
+	void initializeGL() override;
+	void resizeGL(int, int) override;
+	void paintGL() override;
+
+private:
+	RenderRgb* m_pRender = nullptr;
 };
 
 class VideoRenderOpenGLWidget : public IRender
 {
 public:
-	VideoRenderOpenGLWidget(VideoGLWidget* pWidget);
+	VideoRenderOpenGLWidget(VideoOpenGLWidget* pWidget);
 	~VideoRenderOpenGLWidget();
 
 	int ConfigureRender(RenderInfo) override;
@@ -100,7 +112,7 @@ protected:
 	int ConfigureRender(int, int, AVPixelFormat);
 
 protected:
-	VideoGLWidget* m_pVideoWidget = nullptr;
+	VideoOpenGLWidget* m_pVideoWidget = nullptr;
 
 	int m_iWidth = 0;
 	int m_iHeight = 0;

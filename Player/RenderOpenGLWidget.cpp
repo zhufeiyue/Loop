@@ -1,13 +1,11 @@
 #include "RenderOpenGLWidget.h"
 
 
-VideoGLWidget::VideoGLWidget(QWidget* parent):
-	QOpenGLWidget(parent)
+RenderRgb::RenderRgb()
 {
-	setUpdateBehavior(QOpenGLWidget::PartialUpdate);
 }
 
-VideoGLWidget::~VideoGLWidget()
+RenderRgb::~RenderRgb()
 {
 	if (m_pQuadVertices)
 	{
@@ -15,20 +13,21 @@ VideoGLWidget::~VideoGLWidget()
 	}
 }
 
-void VideoGLWidget::SetVideoSize(int w, int h)
+void RenderRgb::SetIsOpenGLES(bool b)
 {
-	m_iVideoWidth = w;
-	m_iVideoHeight = h;
-
-	makeCurrent();
-
-	CalculateVertex(width(), height());
-	CreateVideoTexture(w, h);
-
-	doneCurrent();
+	m_bIsOpenGLES = b;
 }
 
-void VideoGLWidget::CalculateMat(int w, int h)
+void RenderRgb::SetSize(int video_width, int video_height, int canvas_width, int canvas_height)
+{
+	m_iVideoWidth = video_width;
+	m_iVideoHeight = video_height;
+
+	CalculateVertex(canvas_width, canvas_height);
+	CreateVideoTexture(video_width, video_height);
+}
+
+void RenderRgb::CalculateMat(int w, int h)
 {
 	m_matProjection.setToIdentity();
 	m_matProjection.perspective(60.0f, 1.0f * w / h, 1.0f, 5000.0f);
@@ -47,7 +46,7 @@ void VideoGLWidget::CalculateMat(int w, int h)
 	glUniformMatrix4fv(location, 1, GL_FALSE, m_matModelView.data());
 }
 
-void VideoGLWidget::CalculateVertex(int canvasWidth, int canvasHeight)
+void RenderRgb::CalculateVertex(int canvasWidth, int canvasHeight)
 {
 	int content_w = m_iVideoWidth;
 	int content_h = m_iVideoHeight;
@@ -110,7 +109,7 @@ void VideoGLWidget::CalculateVertex(int canvasWidth, int canvasHeight)
 	}
 }
 
-const char* VideoGLWidget::GetShaderSoure(int type)
+const char* RenderRgb::GetShaderSoure(int type)
 {
 	if (type == GL_VERTEX_SHADER)
 	{
@@ -149,7 +148,7 @@ const char* VideoGLWidget::GetShaderSoure(int type)
 	}
 }
 
-void VideoGLWidget::CreateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData)
+void RenderRgb::CreateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData)
 {
 	if (m_programID == 0)
 	{
@@ -184,7 +183,7 @@ void VideoGLWidget::CreateVideoTexture(int videoWidth, int videoHeight, const ui
 	glUniform1i(textureLocation, 0);
 }
 
-void VideoGLWidget::UpdateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData, const int*)
+void RenderRgb::UpdateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData, const int*)
 {
 	if (m_videoTextureID[0] == 0)
 	{
@@ -196,7 +195,7 @@ void VideoGLWidget::UpdateVideoTexture(int videoWidth, int videoHeight, const ui
 	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, m_iVideoWidth, m_iVideoHeight, GL_BGRA, GL_UNSIGNED_BYTE, pData[0]);
 }
 
-void VideoGLWidget::cleanup()
+void RenderRgb::Destroy()
 {
 	for (int i = 0; i < sizeof(m_videoTextureID) / sizeof(m_videoTextureID[0]); ++i)
 	{
@@ -223,17 +222,16 @@ void VideoGLWidget::cleanup()
 		m_vertexShaderID = 0;
 	}
 
+	glUseProgram(0);
 	glDeleteProgram(m_programID);
 	m_programID = 0;
+	m_bInited = false;
 }
 
-void VideoGLWidget::initializeGL()
+void RenderRgb::Init()
 {
-	connect(context(), &QOpenGLContext::aboutToBeDestroyed, this, &VideoGLWidget::cleanup);
 	initializeOpenGLFunctions();
-
 	LOG() << "opengl version: " << glGetString(GL_VERSION);
-	m_bIsOpenGLES = context()->isOpenGLES();
 
 	int iStatus = 0;
 
@@ -307,9 +305,13 @@ void VideoGLWidget::initializeGL()
 	}
 
 	glUseProgram(m_programID);
+
+	m_bInited = true;
+	m_bIsOpenGLES = false;
+	m_bClearBackground = true;
 }
 
-void VideoGLWidget::resizeGL(int w, int h)
+void RenderRgb::Resize(int w, int h)
 {
 	glViewport(0, 0, w, h);
 
@@ -317,12 +319,11 @@ void VideoGLWidget::resizeGL(int w, int h)
 	CalculateVertex(w, h);
 	m_bClearBackground = true;
 
-
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, m_videoTextureID[0]);
 }
 
-void VideoGLWidget::paintGL()
+void RenderRgb::Paint()
 {
 	if (m_bIsOpenGLES || m_bClearBackground)
 	{
@@ -339,12 +340,7 @@ void VideoGLWidget::paintGL()
 }
 
 
-VideoGLWidgetYUV420P::VideoGLWidgetYUV420P(QWidget*parent):
-	VideoGLWidget(parent)
-{
-}
-
-void VideoGLWidgetYUV420P::UpdateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData, const int* pLineSize)
+void RenderYUV420P::UpdateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData, const int* pLineSize)
 {
 	bool bSetRowLength = false;
 
@@ -386,7 +382,7 @@ void VideoGLWidgetYUV420P::UpdateVideoTexture(int videoWidth, int videoHeight, c
 		glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 }
 
-void VideoGLWidgetYUV420P::CreateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData)
+void RenderYUV420P::CreateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData)
 {
 	glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
 	glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
@@ -449,7 +445,7 @@ void VideoGLWidgetYUV420P::CreateVideoTexture(int videoWidth, int videoHeight, c
 	glUniform1i(location_textureV, 2);
 }
 
-const char* VideoGLWidgetYUV420P::GetShaderSoure(int type)
+const char* RenderYUV420P::GetShaderSoure(int type)
 {
 	if (type == GL_VERTEX_SHADER)
 	{
@@ -501,7 +497,7 @@ const char* VideoGLWidgetYUV420P::GetShaderSoure(int type)
 	return nullptr;
 }
 
-void VideoGLWidgetYUV420P::resizeGL(int w, int h)
+void RenderYUV420P::Resize(int w, int h)
 {
 	glViewport(0, 0, w, h);
 
@@ -520,12 +516,7 @@ void VideoGLWidgetYUV420P::resizeGL(int w, int h)
 }
 
 
-VideoGLWidgetNV12::VideoGLWidgetNV12(QWidget* parent):
-	VideoGLWidget(parent)
-{
-}
-
-void VideoGLWidgetNV12::UpdateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData, const int* pLineSize)
+void RenderNV12::UpdateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData, const int* pLineSize)
 {
 	bool bSetRowLength = false;
 
@@ -565,7 +556,7 @@ void VideoGLWidgetNV12::UpdateVideoTexture(int videoWidth, int videoHeight, cons
 		glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 }
 
-void VideoGLWidgetNV12::CreateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData)
+void RenderNV12::CreateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData)
 {
 	glDeleteTextures(2, m_videoTextureID);
 	glGenTextures(2, m_videoTextureID);
@@ -608,7 +599,7 @@ void VideoGLWidgetNV12::CreateVideoTexture(int videoWidth, int videoHeight, cons
 	glUniform1i(location_textureUV, 1);
 }
 
-const char* VideoGLWidgetNV12::GetShaderSoure(int type)
+const char* RenderNV12::GetShaderSoure(int type)
 {
 	if (type == GL_VERTEX_SHADER)
 	{
@@ -660,7 +651,7 @@ const char* VideoGLWidgetNV12::GetShaderSoure(int type)
 	return nullptr;
 }
 
-void VideoGLWidgetNV12::resizeGL(int w, int h)
+void RenderNV12::Resize(int w, int h)
 {
 	glViewport(0, 0, w, h);
 
@@ -676,7 +667,93 @@ void VideoGLWidgetNV12::resizeGL(int w, int h)
 }
 
 
-VideoRenderOpenGLWidget::VideoRenderOpenGLWidget(VideoGLWidget* pWidget):
+VideoOpenGLWidget::VideoOpenGLWidget(QWidget* parent)
+	:QOpenGLWidget(parent)
+{
+	setUpdateBehavior(QOpenGLWidget::PartialUpdate);
+}
+
+VideoOpenGLWidget::~VideoOpenGLWidget()
+{
+}
+
+AVPixelFormat VideoOpenGLWidget::GetSupportedPixformat()
+{
+	return AV_PIX_FMT_NV12;
+	return AV_PIX_FMT_BGRA;
+	return AV_PIX_FMT_YUV420P;
+}
+
+void VideoOpenGLWidget::SetVideoSize(int videoWidth, int videoHeight)
+{
+	if (m_pRender)
+	{
+		makeCurrent();
+		m_pRender->SetSize(videoWidth, videoHeight, width(), height());
+		doneCurrent();
+	}
+}
+
+void VideoOpenGLWidget::UpdateTexture(int w, int h, const uint8_t* const* pData, const int* pLineSize)
+{
+	if (m_pRender)
+	{
+		makeCurrent();
+		m_pRender->UpdateVideoTexture(w, h, pData, pLineSize);
+		doneCurrent();
+	}
+}
+
+void VideoOpenGLWidget::initializeGL()
+{
+	switch (GetSupportedPixformat())
+	{
+	case AV_PIX_FMT_BGRA:
+		m_pRender = new RenderRgb();
+		break;
+	case AV_PIX_FMT_NV12:
+		m_pRender = new RenderNV12();
+		break;
+	case AV_PIX_FMT_YUV420P:
+		m_pRender = new RenderYUV420P();
+		break;
+	default:
+		return;
+	}
+	m_pRender->Init();
+	if (!m_pRender->IsInited())
+	{
+		return;
+	}
+	m_pRender->SetIsOpenGLES(context()->isOpenGLES());
+	connect(context(), &QOpenGLContext::aboutToBeDestroyed, this, [this]() {
+		if (m_pRender)
+		{
+			m_pRender->Destroy();
+			delete m_pRender;
+			m_pRender = nullptr;
+		}
+	});
+}
+
+void VideoOpenGLWidget::resizeGL(int w, int h)
+{
+	if (m_pRender)
+	{
+		m_pRender->Resize(w, h);
+	}
+}
+
+void VideoOpenGLWidget::paintGL()
+{
+	if (m_pRender)
+	{
+		m_pRender->Paint();
+	}
+}
+
+
+VideoRenderOpenGLWidget::VideoRenderOpenGLWidget(VideoOpenGLWidget* pWidget):
 	m_pVideoWidget(pWidget)
 {
 }
@@ -729,16 +806,7 @@ int VideoRenderOpenGLWidget::ConfigureRender(int width, int height, AVPixelForma
 
 	m_pVideoWidget->SetVideoSize(width, height);
 
-	AVPixelFormat formatWant = AV_PIX_FMT_BGRA;
-	if (dynamic_cast<VideoGLWidgetNV12*>(m_pVideoWidget) != nullptr)
-	{
-		formatWant = AV_PIX_FMT_NV12;
-	}
-	else if (dynamic_cast<VideoGLWidgetYUV420P*>(m_pVideoWidget) != nullptr)
-	{
-		formatWant = AV_PIX_FMT_YUV420P;
-	}
-
+	AVPixelFormat formatWant = m_pVideoWidget->GetSupportedPixformat();
 	if (format != formatWant)
 	{
 		m_pImageConvert.reset(new FFmpegImageScale());
@@ -788,7 +856,7 @@ int VideoRenderOpenGLWidget::UpdataFrame(FrameHolderPtr data)
 		pImageLineSize = m_pImageConvert->Frame()->linesize;
 	}
 
-	m_pVideoWidget->UpdateVideoTexture(m_iWidth, m_iHeight, pImagedata, pImageLineSize);
+	m_pVideoWidget->UpdateTexture(m_iWidth, m_iHeight, pImagedata, pImageLineSize);
 	m_pVideoWidget->update();
 
 	return CodeOK;
