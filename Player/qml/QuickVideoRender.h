@@ -1,6 +1,7 @@
 #pragma once
 
 #include <common/Log.h>
+#include <Player/FFmpegDemuxer.h>
 
 #include <QQuickFramebufferObject>
 #include <QOpenGLFramebufferObject>
@@ -38,6 +39,13 @@ public:
 		return m_funcGetCurrentVideoFrame;
 	}
 
+	AVPixelFormat GetSupportedPixformat() const
+	{
+		return AV_PIX_FMT_YUV420P;
+		return AV_PIX_FMT_BGRA;
+		return AV_PIX_FMT_NV12;
+	}
+
 private:
 	Renderer* createRenderer() const override;
 
@@ -48,7 +56,7 @@ private:
 class QuickRenderBgra : public QQuickFramebufferObject::Renderer, protected QOpenGLFunctions
 {
 public:
-	QuickRenderBgra(const QuickVideoRenderObject* );
+	QuickRenderBgra(const QuickVideoRenderObject*);
 	~QuickRenderBgra();
 
 	void render() override;
@@ -60,10 +68,10 @@ private:
 	void CalculateMat(int canvasWidth, int canvasHeight);
 	void CalculateVertex(int canvasWidth, int canvasHeight);
 
-	void CreateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData = nullptr);
-	void UpdateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData, const int* pLineSize);
+	virtual void CreateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData = nullptr);
+	virtual void UpdateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData, const int* pLineSize);
 
-private:
+protected:
 	QOpenGLShaderProgram m_program;
 	int m_vertexAttr = -1;
 	int m_colorsAttr = -1;
@@ -82,4 +90,14 @@ private:
 
 	const QuickVideoRenderObject* m_pRenderObject = nullptr;
 	QuickVideoRenderObject::QuickRenderData m_renderData;
+};
+
+class QuickRenderYUV420P : public QuickRenderBgra
+{
+public:
+	QuickRenderYUV420P(const QuickVideoRenderObject*);
+	int CreateProgram() override;
+protected:
+	void CreateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData) override;
+	void UpdateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData, const int* pLineSize) override;
 };

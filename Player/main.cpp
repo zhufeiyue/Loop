@@ -252,10 +252,11 @@ int testQmlPlayer(int argc, char* argv[])
 	}
 	else
 	{
-		pFile = "D:/迅雷下载/[久久美剧www.jjmjtv.com]星际之门.宇宙.Stargate.Universe.S01E18.Chi_Eng.BD-HDTV.AC3.1024X576.x264-YYeTs.mkv";
 		pFile = "D:/迅雷下载/[阳光电影www.ygdy8.com].了不起的盖茨比.BD.720p.中英双字幕.rmvb";
 		pFile = "D:/迅雷下载/1/FSDSS-083-C.mp4";
 		pFile = "D:/迅雷下载/1/阳光电影www.ygdy8.com.007：无暇赴死.2021.BD.1080P.国英双语双字.mkv";
+		pFile = "D:/迅雷下载/[久久美剧www.jjmjtv.com]星际之门.宇宙.Stargate.Universe.S01E18.Chi_Eng.BD-HDTV.AC3.1024X576.x264-YYeTs.mkv";
+
 	}
 	player.StartPlay(pFile);
 

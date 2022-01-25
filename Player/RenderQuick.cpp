@@ -96,7 +96,7 @@ int VideoRenderQuick::ConfigureRender(int width, int height, AVPixelFormat forma
 	m_iHeight = height;
 	m_format = format;
 
-	AVPixelFormat formatWant = AV_PIX_FMT_BGRA;
+	AVPixelFormat formatWant = static_cast<QuickVideoRenderObject*>(m_pRenderObject)->GetSupportedPixformat();
 	if (format != formatWant)
 	{
 		m_pImageConvert.reset(new FFmpegImageScale());
