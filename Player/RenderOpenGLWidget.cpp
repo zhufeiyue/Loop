@@ -316,8 +316,11 @@ void RenderRgb::Resize(int w, int h)
 	CalculateVertex(w, h);
 	m_bClearBackground = true;
 
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, m_videoTextureID[0]);
+	if (m_videoTextureID[0] != 0)
+	{
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, m_videoTextureID[0]);
+	}
 }
 
 void RenderRgb::Paint()
@@ -501,14 +504,15 @@ void RenderYUV420P::Resize(int w, int h)
 	CalculateVertex(w, h);
 	m_bClearBackground = true;
 
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, m_videoTextureID[0]);
-
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, m_videoTextureID[1]);
-
-	glActiveTexture(GL_TEXTURE2);
-	glBindTexture(GL_TEXTURE_2D, m_videoTextureID[2]);
+	if (m_videoTextureID[0] != 0)
+	{
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, m_videoTextureID[0]);
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, m_videoTextureID[1]);
+		glActiveTexture(GL_TEXTURE2);
+		glBindTexture(GL_TEXTURE_2D, m_videoTextureID[2]);
+	}
 }
 
 
@@ -654,11 +658,13 @@ void RenderNV12::Resize(int w, int h)
 	CalculateVertex(w, h);
 	m_bClearBackground = true;
 
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, m_videoTextureID[0]);
-
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, m_videoTextureID[1]);
+	if (m_videoTextureID[0] != 0)
+	{
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, m_videoTextureID[0]);
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, m_videoTextureID[1]);
+	}
 }
 
 
@@ -716,11 +722,14 @@ void VideoOpenGLWidget::initializeGL()
 		return;
 	}
 	m_pRender->Init();
+	m_pRender->SetIsOpenGLES(context()->isOpenGLES());
 	if (!m_pRender->IsInited())
 	{
 		return;
 	}
-	m_pRender->SetIsOpenGLES(context()->isOpenGLES());
+	
+	LOG() << "current context support threaded opengl: " << context()->supportsThreadedOpenGL();
+
 	connect(context(), &QOpenGLContext::aboutToBeDestroyed, this, [this]() {
 		if (m_pRender)
 		{

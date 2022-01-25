@@ -1,7 +1,6 @@
 #pragma once
 
 #include <common/Log.h>
-#include "./IDecoder.h"
 
 #include <QQuickFramebufferObject>
 #include <QOpenGLFramebufferObject>
@@ -46,17 +45,21 @@ private:
 	std::function<int(QuickRenderData&)> m_funcGetCurrentVideoFrame;
 };
 
-class VideoRender : public QQuickFramebufferObject::Renderer, protected QOpenGLFunctions
+class QuickRenderBgra : public QQuickFramebufferObject::Renderer, protected QOpenGLFunctions
 {
 public:
-	VideoRender(const QuickVideoRenderObject* );
-	~VideoRender();
+	QuickRenderBgra(const QuickVideoRenderObject* );
+	~QuickRenderBgra();
 
 	void render() override;
 	void synchronize(QQuickFramebufferObject*) override;
 	QOpenGLFramebufferObject* createFramebufferObject(const QSize&) override;
 
+	virtual int CreateProgram();
 private:
+	void CalculateMat(int canvasWidth, int canvasHeight);
+	void CalculateVertex(int canvasWidth, int canvasHeight);
+
 	void CreateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData = nullptr);
 	void UpdateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData, const int* pLineSize);
 
@@ -69,6 +72,12 @@ private:
 
 	int m_iVideoWidth = 0;
 	int m_iVideoHeight = 0;
+	int m_iCanvasWidth = 0;
+	int m_iCanvasHeight = 0;
+
+	QVector<QVector3D> m_vertices;
+	QVector<QVector2D> m_texCoords;
+	QMatrix4x4 m_matrix;
 	GLuint m_videoTextureID[3] = { 0 };
 
 	const QuickVideoRenderObject* m_pRenderObject = nullptr;

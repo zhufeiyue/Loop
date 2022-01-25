@@ -49,7 +49,7 @@ static void ChooseOpenGL()
 
 	if (t2 == "windows")
 	{
-		if (sysInfo.windowsVersion() != QSysInfo::WV_WINDOWS10)
+		if (sysInfo.windowsVersion() < QSysInfo::WV_WINDOWS10)
 		{
 			bUseOpenGLES = true;
 		}
@@ -80,12 +80,12 @@ static void ChooseOpenGL()
 	}
 	else
 	{
-		QApplication::setAttribute(Qt::AA_UseDesktopOpenGL);
+		//QApplication::setAttribute(Qt::AA_UseDesktopOpenGL);
 		//QApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
 	}
 }
 
-static void setSurfaceFormat()
+static void SetSurfaceFormat()
 {
 	auto openGLType = QOpenGLContext::openGLModuleType();
 
@@ -98,19 +98,17 @@ static void setSurfaceFormat()
 
 	QSurfaceFormat fmt;
 	fmt.setDepthBufferSize(24);
-	fmt.setSwapBehavior(QSurfaceFormat::SwapBehavior::TripleBuffer);
+	fmt.setSwapBehavior(QSurfaceFormat::SwapBehavior::DoubleBuffer);
 
 	if (QOpenGLContext::openGLModuleType() == QOpenGLContext::LibGL) {
-		// libGL
 		fmt.setVersion(2, 0);
 		fmt.setProfile(QSurfaceFormat::CompatibilityProfile);
 	}
 	else {
-		// libGLES
 		fmt.setVersion(2, 0);
 	}
 
-	//QSurfaceFormat::setDefaultFormat(fmt);
+	QSurfaceFormat::setDefaultFormat(fmt);
 }
 
 class PlayerControl : public QObject
@@ -155,11 +153,8 @@ public:
 
 int testBasePlayer(int argc, char* argv[])
 {
-	av_log_set_callback(my_log_callback);
-
-	ChooseOpenGL();
-
 	QApplication app(argc, argv);
+	//SetSurfaceFormat();
 
 	//testPlayWav();
 	//return 0;
@@ -211,10 +206,9 @@ int testBasePlayer(int argc, char* argv[])
 		pFile = "D:/Ñ¸À×ÏÂÔØ/[Ñô¹âµçÓ°www.ygdy8.com].ÁË²»ÆðµÄ¸Ç´Ä±È.BD.720p.ÖÐÓ¢Ë«×ÖÄ».rmvb";
 		pFile = "D:/Ñ¸À×ÔÆÅÌ/³þÃÅµÄÊÀ½ç.1080p.¹úÓ¢Ë«Óï.BDÖÐÓ¢Ë«×Ö/³þÃÅµÄÊÀ½ç.1080p.¹úÓ¢Ë«Óï.BDÖÐÓ¢Ë«×Ö[66Ó°ÊÓwww.66Ys.Co].mp4";
 		pFile = "D:/Ñ¸À×ÔÆÅÌ/The.Witcher.S02E01.A.Grain.of.Truth.1080p.NF.WEB-DL.DDP5.1.Atmos.x264-TEPES.mkv";
-		pFile = "D:/Ñ¸À×ÏÂÔØ/1/14002/1.mp4";
 		pFile = "D:/Ñ¸À×ÏÂÔØ/[¾Ã¾ÃÃÀ¾çwww.jjmjtv.com]ÐÇ¼ÊÖ®ÃÅ.ÓîÖæ.Stargate.Universe.S01E18.Chi_Eng.BD-HDTV.AC3.1024X576.x264-YYeTs.mkv";
 		pFile = "D:/Ñ¸À×ÏÂÔØ/1/Ñô¹âµçÓ°www.ygdy8.com.007£ºÎÞÏ¾¸°ËÀ.2021.BD.1080P.¹úÓ¢Ë«ÓïË«×Ö.mkv";
-
+		pFile = "D:/Ñ¸À×ÏÂÔØ/1/FSDSS-083-C.mp4";
 	}
 	player.StartPlay(pFile);
 
@@ -259,6 +253,9 @@ int testQmlPlayer(int argc, char* argv[])
 	else
 	{
 		pFile = "D:/Ñ¸À×ÏÂÔØ/[¾Ã¾ÃÃÀ¾çwww.jjmjtv.com]ÐÇ¼ÊÖ®ÃÅ.ÓîÖæ.Stargate.Universe.S01E18.Chi_Eng.BD-HDTV.AC3.1024X576.x264-YYeTs.mkv";
+		pFile = "D:/Ñ¸À×ÏÂÔØ/[Ñô¹âµçÓ°www.ygdy8.com].ÁË²»ÆðµÄ¸Ç´Ä±È.BD.720p.ÖÐÓ¢Ë«×ÖÄ».rmvb";
+		pFile = "D:/Ñ¸À×ÏÂÔØ/1/FSDSS-083-C.mp4";
+		pFile = "D:/Ñ¸À×ÏÂÔØ/1/Ñô¹âµçÓ°www.ygdy8.com.007£ºÎÞÏ¾¸°ËÀ.2021.BD.1080P.¹úÓ¢Ë«ÓïË«×Ö.mkv";
 	}
 	player.StartPlay(pFile);
 
@@ -273,7 +270,10 @@ int testQmlPlayer(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
-	testBasePlayer(argc, argv);
-	//testQmlPlayer(argc, argv);
+	av_log_set_callback(my_log_callback);
+	ChooseOpenGL();
+
+	//testBasePlayer(argc, argv);
+	testQmlPlayer(argc, argv);
 	return 0;
 }
