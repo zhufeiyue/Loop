@@ -41,9 +41,9 @@ public:
 
 	AVPixelFormat GetSupportedPixformat() const
 	{
+		return AV_PIX_FMT_NV12;
 		return AV_PIX_FMT_YUV420P;
 		return AV_PIX_FMT_BGRA;
-		return AV_PIX_FMT_NV12;
 	}
 
 private:
@@ -74,7 +74,6 @@ private:
 protected:
 	QOpenGLShaderProgram m_program;
 	int m_vertexAttr = -1;
-	int m_colorsAttr = -1;
 	int m_textAttr = -1;
 	int m_matrixUniform = -1;
 
@@ -96,6 +95,16 @@ class QuickRenderYUV420P : public QuickRenderBgra
 {
 public:
 	QuickRenderYUV420P(const QuickVideoRenderObject*);
+	int CreateProgram() override;
+protected:
+	void CreateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData) override;
+	void UpdateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData, const int* pLineSize) override;
+};
+
+class QuickRenderNV12 : public QuickRenderBgra
+{
+public:
+	QuickRenderNV12(const QuickVideoRenderObject*);
 	int CreateProgram() override;
 protected:
 	void CreateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData) override;

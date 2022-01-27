@@ -30,7 +30,7 @@ VideoRenderQuick::VideoRenderQuick(QQuickItem* pRenderObject)
 
 		renderData.width = pFrame->width;
 		renderData.height = pFrame->height;
-		renderData.format = (int)AV_PIX_FMT_NV12;
+		renderData.format = -1;
 
 		if (m_pImageConvert)
 		{

@@ -15,12 +15,12 @@ ApplicationWindow {
     }
 
     VideoRender{
-        anchors.left: parent.left
-        anchors.top: parent.top
-        width: parent.width/2
-        height: parent.height/2
-//       anchors.fill: parent
-//       z: 2
+        //anchors.left: parent.left
+        //anchors.top: parent.top
+        //width: parent.width/2
+        //height: parent.height/2
+       anchors.fill: parent
+       z: 2
 
         objectName: "render1"
 

@@ -28,6 +28,7 @@ QuickVideoRenderObject::createRenderer() const
         pRender = new QuickRenderBgra(this);
         break;
     case AV_PIX_FMT_NV12:
+        pRender = new QuickRenderNV12(this);
         break;
     case AV_PIX_FMT_YUV420P:
         pRender = new QuickRenderYUV420P(this);
@@ -48,17 +49,19 @@ QuickRenderBgra::QuickRenderBgra(const QuickVideoRenderObject* pRenderObject):
     LOG() << __FUNCTION__ << ' ' << QThread::currentThreadId();
 
 	initializeOpenGLFunctions();
+    LOG() << "opengl version: " << glGetString(GL_VERSION);
 }
 
 QuickRenderBgra::~QuickRenderBgra()
 {
+    glDeleteTextures(3, m_videoTextureID);
+    LOG() << __FUNCTION__ << " " << glGetError();
+    m_program.removeAllShaders();
 }
 
 void QuickRenderBgra::render()
 {
-    //LOG() << __FUNCTION__ << ' ' << QThread::currentThreadId();
-
-	glClearColor(0.1f, 0.1f, 0.2f, 1.0f);
+    glClearColor(0.078f, 0.078f, 0.078f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
     if (!m_pRenderObject || !m_pRenderObject->GetDataCallback())
@@ -70,6 +73,8 @@ void QuickRenderBgra::render()
         return;
     }
 
+    m_program.bind();
+
     if (m_renderData.width != m_iVideoWidth ||
         m_renderData.height != m_iVideoHeight)
     {
@@ -79,24 +84,6 @@ void QuickRenderBgra::render()
     }
 
     UpdateVideoTexture(m_iVideoWidth, m_iVideoHeight, m_renderData.pData, m_renderData.pLineSize);
-
-    if (m_videoTextureID[0] != 0)
-    {
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, m_videoTextureID[0]);
-    }
-    if (m_videoTextureID[1] != 0)
-    {
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, m_videoTextureID[1]);
-    }
-    if (m_videoTextureID[2] != 0)
-    {
-        glActiveTexture(GL_TEXTURE2);
-        glBindTexture(GL_TEXTURE_2D, m_videoTextureID[2]);
-    }
-
-    m_program.bind();
 
     int width = framebufferObject()->width();
     int height = framebufferObject()->height();
@@ -115,9 +102,7 @@ void QuickRenderBgra::render()
     m_program.enableAttributeArray(m_textAttr);
     m_program.setAttributeArray(m_vertexAttr, m_vertices.constData());
     m_program.setAttributeArray(m_textAttr, m_texCoords.constData());
-
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
     m_program.disableAttributeArray(m_vertexAttr);
     m_program.disableAttributeArray(m_textAttr);
     m_program.release();
@@ -200,6 +185,10 @@ int  QuickRenderBgra::CreateProgram()
         "}";
 
     const char* fsrc =
+        "#ifdef GL_ES\n"
+        "   precision lowp float;\n"
+        "#endif\n"
+
         "uniform sampler2D textureRGB;\n"
         "varying vec2 texCoordOut;\n"
         "void main(void)\n"
@@ -237,16 +226,7 @@ void QuickRenderBgra::CreateVideoTexture(int videoWidth, int videoHeight, const 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    if (pData == nullptr)
-    {
-        auto pTemp = new uint8_t[videoWidth * videoHeight * 4];
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_BGRA, videoWidth, videoHeight, 0, GL_BGRA, GL_UNSIGNED_BYTE, pTemp);
-        delete[] pTemp;
-    }
-    else
-    {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_BGRA, videoWidth, videoHeight, 0, GL_BGRA, GL_UNSIGNED_BYTE, pData[0]);
-    }
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_BGRA, videoWidth, videoHeight, 0, GL_BGRA, GL_UNSIGNED_BYTE, pData[0]);
 
     auto textureLocation = glGetUniformLocation(m_program.programId(), "textureRGB");
     glUniform1i(textureLocation, 0);
@@ -254,6 +234,7 @@ void QuickRenderBgra::CreateVideoTexture(int videoWidth, int videoHeight, const 
 
 void QuickRenderBgra::UpdateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData, const int* pLineSize)
 {
+    glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, m_videoTextureID[0]);
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, m_iVideoWidth, m_iVideoHeight, GL_BGRA, GL_UNSIGNED_BYTE, pData[0]);
 }
@@ -277,6 +258,10 @@ int QuickRenderYUV420P::CreateProgram()
         "}";
 
     const char* fsrc =
+        "#ifdef GL_ES\n"
+        "   precision lowp float;\n"
+        "#endif\n"
+
         "uniform sampler2D textureY;\n"
         "uniform sampler2D textureU;\n"
         "uniform sampler2D textureV;\n"
@@ -326,16 +311,7 @@ void QuickRenderYUV420P::CreateVideoTexture(int videoWidth, int videoHeight, con
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    std::unique_ptr<uint8_t[]> ptemp;
-    ptemp.reset(new uint8_t[videoWidth * videoHeight * 4]);
-    if (!pData)
-    {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, videoWidth, videoHeight, 0, GL_RED, GL_UNSIGNED_BYTE, ptemp.get());
-    }
-    else
-    {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, videoWidth, videoHeight, 0, GL_RED, GL_UNSIGNED_BYTE, pData[0]);
-    }
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, videoWidth, videoHeight, 0, GL_RED, GL_UNSIGNED_BYTE, pData[0]);
 
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, m_videoTextureID[1]);
@@ -343,14 +319,7 @@ void QuickRenderYUV420P::CreateVideoTexture(int videoWidth, int videoHeight, con
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    if (!pData)
-    {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, videoWidth / 2, videoHeight / 2, 0, GL_RED, GL_UNSIGNED_BYTE, ptemp.get());
-    }
-    else
-    {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, videoWidth / 2, videoHeight / 2, 0, GL_RED, GL_UNSIGNED_BYTE, pData[1]);
-    }
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, videoWidth / 2, videoHeight / 2, 0, GL_RED, GL_UNSIGNED_BYTE, pData[1]);
 
     glActiveTexture(GL_TEXTURE2);
     glBindTexture(GL_TEXTURE_2D, m_videoTextureID[2]);
@@ -358,14 +327,7 @@ void QuickRenderYUV420P::CreateVideoTexture(int videoWidth, int videoHeight, con
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    if (!pData)
-    {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, videoWidth / 2, videoHeight / 2, 0, GL_RED, GL_UNSIGNED_BYTE, ptemp.get());
-    }
-    else
-    {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, videoWidth / 2, videoHeight / 2, 0, GL_RED, GL_UNSIGNED_BYTE, pData[2]);
-    }
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, videoWidth / 2, videoHeight / 2, 0, GL_RED, GL_UNSIGNED_BYTE, pData[2]);
 
     auto location_textureY = glGetUniformLocation(m_program.programId(), "textureY");
     auto location_textureU = glGetUniformLocation(m_program.programId(), "textureU");
@@ -399,23 +361,148 @@ void QuickRenderYUV420P::UpdateVideoTexture(int videoWidth, int videoHeight, con
         return;
     }
 
-    glActiveTexture(GL_TEXTURE0);
-    if (bSetRowLength)
-        glPixelStorei(GL_UNPACK_ROW_LENGTH, pLineSize[0]);
-    glBindTexture(GL_TEXTURE_2D, m_videoTextureID[0]);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, m_iVideoWidth, m_iVideoHeight, GL_RED, GL_UNSIGNED_BYTE, pData[0]);
-
-    glActiveTexture(GL_TEXTURE1);
     if (bSetRowLength)
         glPixelStorei(GL_UNPACK_ROW_LENGTH, pLineSize[1]);
-    glBindTexture(GL_TEXTURE_2D, m_videoTextureID[1]);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, m_iVideoWidth / 2, m_iVideoHeight / 2, GL_RED, GL_UNSIGNED_BYTE, pData[1]);
 
     glActiveTexture(GL_TEXTURE2);
     glBindTexture(GL_TEXTURE_2D, m_videoTextureID[2]);
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, m_iVideoWidth / 2, m_iVideoHeight / 2, GL_RED, GL_UNSIGNED_BYTE, pData[2]);
 
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, m_videoTextureID[1]);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, m_iVideoWidth / 2, m_iVideoHeight / 2, GL_RED, GL_UNSIGNED_BYTE, pData[1]);
+
+    if (bSetRowLength)
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, pLineSize[0]);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, m_videoTextureID[0]);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, m_iVideoWidth, m_iVideoHeight, GL_RED, GL_UNSIGNED_BYTE, pData[0]);
+
     // »Ö¸´Îª0
+    if (bSetRowLength)
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+}
+
+
+QuickRenderNV12::QuickRenderNV12(const QuickVideoRenderObject* pobj) :
+    QuickRenderBgra(pobj)
+{
+}
+
+int QuickRenderNV12::CreateProgram()
+{
+    const char* vsrc =
+        "attribute vec4 vertex;\n"
+        "attribute vec2 texCoord;\n"
+        "varying vec2 texCoordOut;\n"
+        "uniform mat4 matrix;\n"
+        "void main() {\n"
+        "   gl_Position = matrix * vertex;\n"
+        "	texCoordOut = texCoord; \n"
+        "}";
+
+    const char* fsrc =
+        "#ifdef GL_ES\n"
+        "   precision lowp float;\n"
+        "#endif\n"
+
+        "uniform sampler2D textureY;\n"
+        "uniform sampler2D textureUV;\n"
+        "varying vec2 texCoordOut;\n"
+
+        "const vec3 yuv2r = vec3(1.164, 0.0, 1.596);\n"
+        "const vec3 yuv2g = vec3(1.164, -0.391, -0.813);\n"
+        "const vec3 yuv2b = vec3(1.164, 2.018, 0.0);\n"
+
+        "void main(void)\n"
+        "{\n"
+            "vec3 yuv; \n"
+            "vec3 rgb; \n"
+            "yuv.x = texture2D(textureY, texCoordOut.st).r - 0.0625; \n"
+            "yuv.y = texture2D(textureUV, texCoordOut.st).r - 0.5; \n"
+            "yuv.z = texture2D(textureUV, texCoordOut.st).g - 0.5; \n"
+
+            "rgb.x = dot(yuv, yuv2r);\n"
+            "rgb.y = dot(yuv, yuv2g);\n"
+            "rgb.z = dot(yuv, yuv2b);\n"
+
+            "gl_FragColor = vec4(rgb, 1.0);"
+        "}\n";
+
+    m_program.addCacheableShaderFromSourceCode(QOpenGLShader::Vertex, vsrc);
+    m_program.addCacheableShaderFromSourceCode(QOpenGLShader::Fragment, fsrc);
+    if (!m_program.link())
+    {
+        LOG() << m_program.log().toStdString();
+        return CodeNo;
+    }
+
+    m_vertexAttr = m_program.attributeLocation("vertex");
+    m_textAttr = m_program.attributeLocation("texCoord");
+    m_matrixUniform = m_program.uniformLocation("matrix");
+    return CodeOK;
+}
+
+void QuickRenderNV12::CreateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData)
+{
+    glDeleteTextures(2, m_videoTextureID);
+    glGenTextures(2, m_videoTextureID);
+
+    glBindTexture(GL_TEXTURE_2D, m_videoTextureID[0]);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, videoWidth, videoHeight, 0, GL_RED, GL_UNSIGNED_BYTE, pData[0]);
+
+    glBindTexture(GL_TEXTURE_2D, m_videoTextureID[1]);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG, videoWidth / 2, videoHeight / 2, 0, GL_RG, GL_UNSIGNED_BYTE, pData[1]);
+
+    auto location_textureY = glGetUniformLocation(m_program.programId(), "textureY");
+    auto location_textureUV = glGetUniformLocation(m_program.programId(), "textureUV");
+    glUniform1i(location_textureY, 0);
+    glUniform1i(location_textureUV, 1);
+}
+
+void QuickRenderNV12::UpdateVideoTexture(int videoWidth, int videoHeight, const uint8_t* const* pData, const int* pLineSize)
+{
+    bool bSetRowLength = false;
+
+    if (pLineSize[0] > videoWidth)
+    {
+        bSetRowLength = true;
+    }
+    else if (pLineSize[0] == videoWidth)
+    {
+    }
+    else
+    {
+        LOG() << "fatal error: " << __FUNCTION__ << " lineSize less than video width";
+        return;
+    }
+
+    if (pLineSize[1] != pLineSize[0])
+    {
+        LOG() << "fatal error: " << __FUNCTION__ << " Y UV lineSize not equal";
+        return;
+    }
+
+    if (bSetRowLength)
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, pLineSize[1] / 2);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, m_videoTextureID[1]);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, m_iVideoWidth / 2, m_iVideoHeight / 2, GL_RG, GL_UNSIGNED_BYTE, pData[1]);
+
+    if (bSetRowLength)
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, pLineSize[0]);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, m_videoTextureID[0]);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, m_iVideoWidth, m_iVideoHeight, GL_RED, GL_UNSIGNED_BYTE, pData[0]);
+
     if (bSetRowLength)
         glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 }
