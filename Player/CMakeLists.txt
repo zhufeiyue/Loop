@@ -29,6 +29,7 @@ list(APPEND PlayerSource RenderOpenAL.h RenderOpenAL.cpp WavDemuxer.h WavDemuxer
 list(APPEND PlayerSource AVSync.h AVSync.cpp)
 list(APPEND PlayerSource Player.h Player.cpp)
 list(APPEND PlayerSource PlayerTimer.h PlayerTimer.cpp)
+aux_source_directory(./hls  PlayerSource)
 
 #aux_source_directory(./view MainQtSource)
 set(PlayerQtSource RenderGraphicsView.cpp RenderGraphicsView.h )

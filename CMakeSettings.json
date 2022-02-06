@@ -75,6 +75,46 @@
 			"type": "STRING"
 		}
       ]
+    },
+	{
+      "name": "x86-Debug",
+      "generator": "Ninja",
+      "configurationType": "Debug",
+      "inheritEnvironments": [
+        "msvc_x86"
+      ],
+      "buildRoot": "${projectDir}\\out\\build\\${name}",
+      "installRoot": "${projectDir}\\out\\install\\${name}",
+      "cmakeCommandArgs": "",
+      "buildCommandArgs": "-v",
+      "ctestCommandArgs": "",
+      "variables": [
+        {
+          "name": "OpenSSLPath",
+          "value": "C:\\Program Files (x86)\\OpenSSL-Win32",
+          "type": "STRING"
+        },
+        {
+          "name": "BoostPath",
+          "value": "E:\\BaiduNetdiskDownload\\boostbuild",
+          "type": "STRING"
+        },
+        {
+          "name": "QtPath",
+          "value": "D:\\soft\\Qt\\5.13.2\\msvc2017",
+          "type": "STRING"
+        },
+        {
+          "name": "FFmpegPath",
+          "value": "D:\\work\\ffmpeg3.4\\build",
+          "type": "STRING"
+        },
+        {
+          "name": "OpenALPath",
+          "value": "C:/Program Files (x86)/OpenAL 1.1 SDK",
+          "type": "STRING"
+        }
+      ]
     }
   ]
 }

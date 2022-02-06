@@ -5,6 +5,7 @@
 #include <fstream>
 #include <sstream>
 
+void SaveTemp(const std::string&, const std::string&);
 int InitLogger(const char*);
 
 class LogPrintHelper

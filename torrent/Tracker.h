@@ -1,5 +1,6 @@
 #pragma once
 #include <mutex>
+#include <common/bufpool.h>
 #include <common/AsioSocket.h>
 
 class UdpTracker : public std::enable_shared_from_this<UdpTracker>

@@ -1,6 +1,7 @@
 
 #include "AsioSocket.h"
-#include <common/ParseUrl.h>
+#include "ParseUrl.h"
+#include "log.h"
 #include <boost/beast/ssl.hpp>
 
 using namespace boost;
@@ -85,8 +86,7 @@ void UdpClient::OnError(const boost::system::error_code& err)
 
 
 HttpClient::HttpClient(Eventloop& loop):
-	m_loop(loop),
-	m_pSSLCtx(new asio::ssl::context(asio::ssl::context::tlsv12_client))
+	m_loop(loop)
 {
 }
 
@@ -102,13 +102,13 @@ int HttpClient::Abort()
 	}
 	if (m_pStreamBase && m_pStreamBase->socket().is_open())
 	{
+		//m_pStreamBase->close();
 		m_pStreamBase->cancel();
-		system::error_code serr;
-		m_pStreamBase->socket().shutdown(asio::socket_base::shutdown_both, serr);
 	}
 	if (m_pSSLStreamBase)
 	{
 		m_pSSLStreamBase->shutdown();
+		m_pSSLStreamBase.reset();
 	}
 
 	auto size = m_buffer.size();
@@ -116,18 +116,23 @@ int HttpClient::Abort()
 	{
 		m_buffer.consume(size);
 	}
-
-	m_response.swap(decltype(m_response)());
+	
+	m_response.base().clear();
+	m_response.body().clear();
+	m_response.clear();
 
 	return CodeOK;
 }
 
-int HttpClient::Get(std::string url)
+int HttpClient::Get(std::string url, DataCallback dataCb, ErrorCallback errorCb)
 {
 	std::string host;
 	std::string scheme;
 	std::string path;
 	int port(0);
+
+	m_cbData = std::move(dataCb);
+	m_cbError = std::move(errorCb);
 
 	if (!ParseUrl(url, scheme, host, path, port))
 	{
@@ -135,18 +140,14 @@ int HttpClient::Get(std::string url)
 		return CodeNo;
 	}
 
-	if (m_pResolver)
-	{
-		return CodeNo;
-	}
-
-	m_pResolver.reset(new asio::ip::tcp::resolver(m_loop.AsioQueue().Context()));
-	m_pResolver->async_resolve(host, scheme,
-		[pThis = shared_from_this()](const system::error_code& err, asio::ip::tcp::resolver::results_type res)
-	{
+	if (!m_pResolver)
+		m_pResolver.reset(new asio::ip::tcp::resolver(m_loop.AsioQueue().Context()));
+	m_pResolver->async_resolve(host, std::to_string(port),
+		[pThis = shared_from_this()](const system::error_code& err, asio::ip::tcp::resolver::results_type res){
 		pThis->OnResolver(err, res);
 	});
 
+	m_strUrl = url;
 	m_strHost = host;
 	m_strScheme = scheme;
 	m_strPath = path;
@@ -159,15 +160,15 @@ void HttpClient::OnResolver(const boost::system::error_code& err, boost::asio::i
 {
 	if (err)
 	{
-		LOG() << __FUNCTION__ << err.message();
+		OnError(err);
 		return;
 	}
 
-	m_pStreamBase.reset(new beast::tcp_stream(m_loop.AsioQueue().Context()));
-	m_pStreamBase->expires_after(std::chrono::seconds(15));
+	if(!m_pStreamBase)
+		m_pStreamBase.reset(new beast::tcp_stream(m_loop.AsioQueue().Context()));
+	m_pStreamBase->expires_after(std::chrono::seconds(6));
 	m_pStreamBase->async_connect(ep,
-		[pThis = shared_from_this()](const boost::system::error_code& err, asio::ip::tcp::endpoint ep)
-	{
+		[pThis = shared_from_this()](const boost::system::error_code& err, asio::ip::tcp::endpoint ep){
 		pThis->OnConnect(err);
 	});
 }
@@ -176,12 +177,13 @@ void HttpClient::OnConnect(const boost::system::error_code& err)
 {
 	if (err)
 	{
-		LOG() << __FUNCTION__ << err.message();
+		OnError(err);
 		return;
 	}
 
 	if (m_strScheme == "https")
 	{
+		m_pSSLCtx.reset(new asio::ssl::context(asio::ssl::context::tlsv12_client));
 		m_pSSLStreamBase.reset(
 			new beast::ssl_stream<beast::tcp_stream>(m_pStreamBase->release_socket(), *m_pSSLCtx)
 		);
@@ -202,8 +204,7 @@ void HttpClient::OnConnect(const boost::system::error_code& err)
 			});
 
 		m_pSSLStreamBase->async_handshake(asio::ssl::stream_base::client,
-			[pThis = shared_from_this()](const boost::system::error_code& err)
-		{
+			[pThis = shared_from_this()](const boost::system::error_code& err){
 			pThis->OnHandshake(err);
 		});
 	}
@@ -217,7 +218,7 @@ void HttpClient::OnWrite(const boost::system::error_code& err, std::size_t)
 {
 	if (err)
 	{
-		LOG() << __FUNCTION__ << err.message();
+		OnError(err);
 		return;
 	}
 
@@ -243,48 +244,66 @@ void HttpClient::OnRead(const boost::system::error_code& err, std::size_t n)
 {
 	if (err)
 	{
-		LOG() << __FUNCTION__ << err.message();
+		OnError(err);
 		return;
 	}
 
-	try
+	auto result = m_response.result_int();
+	if (result == 301 || result == 302)
 	{
-		auto result = m_response.result();
-		auto type = m_response.base().at(beast::http::field::content_type).to_string();
-		auto len = m_response.base().at(beast::http::field::content_length).to_string();
-	}
-	catch (...)
-	{
+		auto iter = m_response.find(beast::http::field::location);
+		if (iter != m_response.end())
+		{
+			auto strLocation = iter->value().to_string();
+			Abort();
+			Get(strLocation, m_cbData, m_cbError);
+			return;
+		}
 	}
 
 	auto s = beast::buffers_to_string(m_response.body().data());
+	Dictionary dic;
+	dic.insert("result", (int)result);
+	dic.insert("url", m_strUrl);
 
-	std::ofstream f;
-	f.open("d:/1.html", std::ofstream::binary | std::ofstream::out);
-	f.write(s.c_str(), s.length());
-	f.close();
+	if (m_cbData)
+	{
+		m_cbData(std::move(s), std::move(dic));
+	}
+	Abort();
 }
 
 void HttpClient::OnHandshake(const boost::system::error_code& err)
 {
 	if (err)
 	{
-		LOG() << __FUNCTION__ << err.message();
+		OnError(err);
 		return;
 	}
 
 	DoRequest();
 }
 
+void HttpClient::OnError(const boost::system::error_code& err)
+{
+	LOG() << __FUNCTION__ << err.message();
+
+	Dictionary dic;
+	dic.insert("message", err.message());
+
+	if (m_cbError)
+	{
+		m_cbError(std::move(dic));
+	}
+}
+
 void HttpClient::DoRequest()
 {
 	auto pReq = std::make_shared<beast::http::request<beast::http::dynamic_body>>();
 	pReq->version(11);
-	//pReq->set(beast::http::field::connection, "keep-alive");
-	//pReq->set(beast::http::field::accept_encoding, "gzip, deflate");
 	pReq->set(beast::http::field::cache_control, "max-age=0");
-	pReq->set(beast::http::field::accept, "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9");
-	pReq->set(beast::http::field::user_agent, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.182 Safari/537.36 Edg/88.0.705.81");
+	pReq->set(beast::http::field::accept, "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8");
+	pReq->set(beast::http::field::user_agent, "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:95.0) Gecko/20100101 Firefox/95.0");
 	pReq->set(beast::http::field::accept_language, "zh-CN,zh;q=0.9,en;q=0.8");
 	pReq->set(beast::http::field::host, m_strHost);
 	pReq->method(m_method);

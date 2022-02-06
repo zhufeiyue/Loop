@@ -8,6 +8,7 @@
 #include <QJsonDocument>
 #include <QSysInfo>
 #include <QQmlApplicationEngine>
+#include <QSslSocket>
 
 #include <filesystem>
 #include <common/Dic.h>
@@ -18,8 +19,24 @@
 #include "RenderOpenAL.h"
 #include "RenderOpenGLWidget.h"
 #include "FFmpegFilter.h"
-
 #include "qml/QuickVideoRender.h"
+#include "hls/HLSPlaylist.h"
+
+#ifdef _MSC_VER
+#include <dwmapi.h>
+#pragma comment (lib, "Dwmapi.lib")
+
+void EnableDwm()
+{
+	BOOL bEnable = FALSE;
+	HRESULT hr = DwmIsCompositionEnabled(&bEnable);
+
+	if (!bEnable)
+	{
+		hr = DwmEnableComposition(DWM_EC_ENABLECOMPOSITION);
+	}
+}
+#endif
 
 // 使用的ffmpeg版本为4.3
 static void my_log_callback(void*, int level, const char* format, va_list vl)
@@ -51,6 +68,9 @@ static void ChooseOpenGL()
 	{
 		if (sysInfo.windowsVersion() < QSysInfo::WV_WINDOWS10)
 		{
+#ifdef _MSC_VER
+			EnableDwm();
+#endif
 			bUseOpenGLES = true;
 		}
 	}
@@ -223,8 +243,6 @@ int testBasePlayer(int argc, char* argv[])
 
 int testQmlPlayer(int argc, char* argv[])
 {
-	ChooseOpenGL();
-
 	QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 	QGuiApplication app(argc, argv);
 
@@ -255,8 +273,8 @@ int testQmlPlayer(int argc, char* argv[])
 		pFile = "D:/迅雷下载/[阳光电影www.ygdy8.com].了不起的盖茨比.BD.720p.中英双字幕.rmvb";
 		pFile = "D:/迅雷下载/1/FSDSS-083-C.mp4";
 		pFile = "D:/迅雷下载/1/阳光电影www.ygdy8.com.007：无暇赴死.2021.BD.1080P.国英双语双字.mkv";
-		pFile = "D:/迅雷下载/[久久美剧www.jjmjtv.com]星际之门.宇宙.Stargate.Universe.S01E18.Chi_Eng.BD-HDTV.AC3.1024X576.x264-YYeTs.mkv";
-		pFile = "D:/迅雷云盘/The.Witcher.S02E01.A.Grain.of.Truth.1080p.NF.WEB-DL.DDP5.1.Atmos.x264-TEPES.mkv";
+		pFile = "e:/1.mp4";
+		pFile = "http://112.74.200.9:88/tv000000/m3u8.php?/migu/625204865";
 	}
 	player.StartPlay(pFile);
 
@@ -271,10 +289,12 @@ int testQmlPlayer(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
+	LOG() << "Qt use: " << QSslSocket::sslLibraryBuildVersionString().toStdString();
+
 	av_log_set_callback(my_log_callback);
 	ChooseOpenGL();
-
 	//testBasePlayer(argc, argv);
-	testQmlPlayer(argc, argv);
+	//testQmlPlayer(argc, argv);
+	testHls();
 	return 0;
 }

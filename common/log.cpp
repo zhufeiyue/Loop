@@ -4,6 +4,18 @@
 #include <Windows.h>
 #endif
 
+void SaveTemp(const std::string& strPath, const std::string& strData)
+{
+	std::ofstream fileOut;
+
+	fileOut.open(strPath, std::ofstream::out | std::ofstream::binary);
+	if (fileOut.is_open())
+	{
+		fileOut.write(strData.c_str(), strData.length());
+		fileOut.close();
+	}
+}
+
 static std::ofstream gLogFile;
 int InitLogger(const char* logFileNamePrefix)
 {
