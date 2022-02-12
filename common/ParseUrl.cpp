@@ -45,12 +45,13 @@ bool ParseUrl(const std::string& url,
 		}
 		else
 		{
-			if (scheme == "http")
-				port = 80;
-			else if (scheme == "https")
-				port = 443;
-			else
-				goto End;
+			//if (scheme == "http")
+			//	port = 80;
+			//else if (scheme == "https")
+			//	port = 443;
+			//else
+			//	goto End;
+			port = 0;
 		}
 
 		path = std::string(rmath[5]);

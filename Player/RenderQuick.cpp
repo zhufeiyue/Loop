@@ -30,7 +30,6 @@ VideoRenderQuick::VideoRenderQuick(QQuickItem* pRenderObject)
 
 		renderData.width = pFrame->width;
 		renderData.height = pFrame->height;
-		renderData.format = -1;
 
 		if (m_pImageConvert)
 		{
@@ -40,11 +39,13 @@ VideoRenderQuick::VideoRenderQuick(QQuickItem* pRenderObject)
 				return CodeNo;
 			}
 
+			renderData.format = m_pImageConvert->Frame()->format;
 			renderData.pData = m_pImageConvert->Frame()->data;
 			renderData.pLineSize = m_pImageConvert->Frame()->linesize;
 		}
 		else
 		{
+			renderData.format = pFrame->format;
 			renderData.pData = pFrame->data;
 			renderData.pLineSize = pFrame->linesize;
 		}
@@ -96,11 +97,12 @@ int VideoRenderQuick::ConfigureRender(int width, int height, AVPixelFormat forma
 	m_iHeight = height;
 	m_format = format;
 
-	AVPixelFormat formatWant = static_cast<QuickVideoRenderObject*>(m_pRenderObject)->GetSupportedPixformat();
-	if (format != formatWant)
+	auto formatWants = static_cast<QuickVideoRenderObject*>(m_pRenderObject)->GetSupportedPixformat();
+
+	if (std::find(formatWants.begin(), formatWants.end(), format) == formatWants.end())
 	{
 		m_pImageConvert.reset(new FFmpegImageScale());
-		if (CodeOK != m_pImageConvert->Configure(width, height, format, width, height, formatWant))
+		if (CodeOK != m_pImageConvert->Configure(width, height, format, width, height, formatWants[0]))
 		{
 			return CodeNo;
 		}
@@ -132,6 +134,7 @@ int VideoRenderQuick::Pause(bool)
 
 int VideoRenderQuick::Stop()
 {
+	m_videoFrameData.reset();
 	return CodeOK;
 }
 

@@ -21,30 +21,85 @@ QQuickFramebufferObject::Renderer*
 QuickVideoRenderObject::createRenderer() const
 {
     LOG() << __FUNCTION__ << ' ' << QThread::currentThreadId();
-    QuickRenderBgra* pRender = nullptr;
-    switch (GetSupportedPixformat())
-    {
-    case AV_PIX_FMT_BGRA:
-        pRender = new QuickRenderBgra(this);
-        break;
-    case AV_PIX_FMT_NV12:
-        pRender = new QuickRenderNV12(this);
-        break;
-    case AV_PIX_FMT_YUV420P:
-        pRender = new QuickRenderYUV420P(this);
-        break;
-    default:
-        break;
-    }
-
-    if (pRender)
-        pRender->CreateProgram();
-    return pRender;
+    return new Render(this);
 }
 
 
-QuickRenderBgra::QuickRenderBgra(const QuickVideoRenderObject* pRenderObject):
+Render::Render(const QuickVideoRenderObject* pRenderObject):
     m_pRenderObject(pRenderObject)
+{
+}
+
+Render::~Render()
+{
+    if (m_pRender)
+        delete m_pRender;
+}
+
+void Render::render()
+{
+    m_pRender->ClearBackground();
+
+    if (!m_pRenderObject || !m_pRenderObject->GetDataCallback())
+    {
+        return;
+    }
+
+    if (CodeOK != m_pRenderObject->GetDataCallback()(m_renderData))
+    {
+        return;
+    }
+
+    if (m_renderData.format != m_pixFormat)
+    {
+        if (m_pRender)
+        {
+            delete m_pRender;
+            m_pRender = nullptr;
+        }
+
+        if (m_renderData.format == AV_PIX_FMT_BGRA)
+        {
+            m_pRender = new QuickRenderBgra();
+        }
+        else if (m_renderData.format == AV_PIX_FMT_NV12)
+        {
+            m_pRender = new QuickRenderNV12();
+        }
+        else if (m_renderData.format == AV_PIX_FMT_YUV420P)
+        {
+            m_pRender = new QuickRenderYUV420P();
+        }
+        if (!m_pRender)
+        {
+            return;
+        }
+
+        m_pRender->CreateProgram();
+        m_pixFormat = m_renderData.format;
+    }
+
+    m_renderData.c_width = framebufferObject()->width();
+    m_renderData.c_height = framebufferObject()->height();
+    m_pRender->Render(m_renderData);
+}
+
+void Render::synchronize(QQuickFramebufferObject*)
+{
+}
+
+QOpenGLFramebufferObject* Render::createFramebufferObject(const QSize& size)
+{
+    LOG() << __FUNCTION__ << ' ' << QThread::currentThreadId();
+
+    QOpenGLFramebufferObjectFormat format;
+    //format.setAttachment(QOpenGLFramebufferObject::CombinedDepthStencil);
+    //format.setSamples(4);
+    return new QOpenGLFramebufferObject(size, format);
+}
+
+
+QuickRenderBgra::QuickRenderBgra()
 {
     LOG() << __FUNCTION__ << ' ' << QThread::currentThreadId();
 
@@ -54,39 +109,34 @@ QuickRenderBgra::QuickRenderBgra(const QuickVideoRenderObject* pRenderObject):
 
 QuickRenderBgra::~QuickRenderBgra()
 {
-    glDeleteTextures(3, m_videoTextureID);
+    if (m_videoTextureID[0] != 0)
+        glDeleteTextures(3, m_videoTextureID);
     LOG() << __FUNCTION__ << " " << glGetError();
     m_program.removeAllShaders();
 }
 
-void QuickRenderBgra::render()
+void QuickRenderBgra::ClearBackground()
 {
     glClearColor(0.078f, 0.078f, 0.078f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT);
+}
 
-    if (!m_pRenderObject || !m_pRenderObject->GetDataCallback())
-    {
-        return;
-    }
-    if (CodeOK != m_pRenderObject->GetDataCallback()(m_renderData))
-    {
-        return;
-    }
-
+void QuickRenderBgra::Render(QuickVideoRenderObject::QuickRenderData& renderData)
+{
     m_program.bind();
 
-    if (m_renderData.width != m_iVideoWidth ||
-        m_renderData.height != m_iVideoHeight)
+    if (renderData.width != m_iVideoWidth ||
+        renderData.height != m_iVideoHeight)
     {
-        m_iVideoWidth = m_renderData.width;
-        m_iVideoHeight = m_renderData.height;
-        CreateVideoTexture(m_iVideoWidth, m_iVideoHeight, m_renderData.pData);
+        m_iVideoWidth = renderData.width;
+        m_iVideoHeight = renderData.height;
+        CreateVideoTexture(m_iVideoWidth, m_iVideoHeight, renderData.pData);
     }
 
-    UpdateVideoTexture(m_iVideoWidth, m_iVideoHeight, m_renderData.pData, m_renderData.pLineSize);
+    UpdateVideoTexture(m_iVideoWidth, m_iVideoHeight, renderData.pData, renderData.pLineSize);
 
-    int width = framebufferObject()->width();
-    int height = framebufferObject()->height();
+    int width = renderData.c_width;
+    int height = renderData.c_height;
 
     if (m_iCanvasWidth != width || m_iCanvasHeight != height)
     {
@@ -106,22 +156,6 @@ void QuickRenderBgra::render()
     m_program.disableAttributeArray(m_vertexAttr);
     m_program.disableAttributeArray(m_textAttr);
     m_program.release();
-}
-
-void QuickRenderBgra::synchronize(QQuickFramebufferObject*)
-{
-    //LOG() << __FUNCTION__;
-}
-
-QOpenGLFramebufferObject* QuickRenderBgra::createFramebufferObject(const QSize& size)
-{
-    LOG() << __FUNCTION__ << ' ' << QThread::currentThreadId();
-
-	QOpenGLFramebufferObjectFormat format;
-	//format.setAttachment(QOpenGLFramebufferObject::CombinedDepthStencil);
-	//format.setSamples(4);
-
-	return new QOpenGLFramebufferObject(size, format);
 }
 
 void QuickRenderBgra::CalculateMat(int w, int h)
@@ -239,11 +273,6 @@ void QuickRenderBgra::UpdateVideoTexture(int videoWidth, int videoHeight, const 
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, m_iVideoWidth, m_iVideoHeight, GL_BGRA, GL_UNSIGNED_BYTE, pData[0]);
 }
 
-
-QuickRenderYUV420P::QuickRenderYUV420P(const QuickVideoRenderObject* p)
-    : QuickRenderBgra(p)
-{
-}
 
 int QuickRenderYUV420P::CreateProgram()
 {
@@ -383,11 +412,6 @@ void QuickRenderYUV420P::UpdateVideoTexture(int videoWidth, int videoHeight, con
         glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 }
 
-
-QuickRenderNV12::QuickRenderNV12(const QuickVideoRenderObject* pobj) :
-    QuickRenderBgra(pobj)
-{
-}
 
 int QuickRenderNV12::CreateProgram()
 {

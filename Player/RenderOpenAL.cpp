@@ -2,6 +2,8 @@
 
 double GetSpeedByEnumValue(int);
 
+static ALCdevice* pgDevice = nullptr;
+
 OpenALDevice::OpenALDevice(std::string strDeviceName)
 {
 	const char* defaultName = nullptr;
@@ -9,23 +11,24 @@ OpenALDevice::OpenALDevice(std::string strDeviceName)
 	if (defaultName)
 		LOG() << "default openal device name: " << defaultName;
 
-	m_pDevice = alcOpenDevice(strDeviceName.empty() ? defaultName : strDeviceName.c_str());
-	if (!m_pDevice)
+	if(!pgDevice)
+		pgDevice = alcOpenDevice(strDeviceName.empty() ? defaultName : strDeviceName.c_str());
+	if (!pgDevice)
 	{
 		LOG() << "alcOpenDevice " << alGetError();
 		return;
 	}
 
-	m_pContext = alcCreateContext(m_pDevice, NULL);
+	m_pContext = alcCreateContext(pgDevice, NULL);
 	if (!m_pContext)
 	{
-		LOG() << "alcCreateContext " << alcGetError(m_pDevice);
+		LOG() << "alcCreateContext " << alcGetError(pgDevice);
 		return;
 	}
 
 	if (!alcMakeContextCurrent(m_pContext))
 	{
-		LOG() << "alcMakeContextCurrent " << alcGetError(m_pDevice);
+		LOG() << "alcMakeContextCurrent " << alcGetError(pgDevice);
 		alcDestroyContext(m_pContext);
 		m_pContext = NULL;
 		return;
@@ -62,25 +65,13 @@ OpenALDevice::~OpenALDevice()
 			LOG() << "alcMakeContextCurrent(NULL) failed";
 		}
 		alcDestroyContext(m_pContext);
-		if (m_pDevice)
+		err = alcGetError(pgDevice);
+		if (err != AL_NO_ERROR)
 		{
-			err = alcGetError(m_pDevice);
-			if (err != AL_NO_ERROR)
-			{
-				LOG() << "alcDestroyContext " << alcGetString(m_pDevice, err);
-			}
+			LOG() << "alcDestroyContext " << alcGetString(pgDevice, err);
 		}
 
 		m_pContext = NULL;
-	}
-
-	if (m_pDevice)
-	{
-		if (!alcCloseDevice(m_pDevice))
-		{
-			LOG() << "alcCloseDevice failed";
-		}
-		m_pDevice = NULL;
 	}
 }
 
@@ -205,11 +196,9 @@ int OpenALDevice::Stop()
 
 	if (m_source != 0)
 	{
-		UnqueueBuffer();
-
 		alSourceStop(m_source);
+		alSourcei(m_source, AL_BUFFER, 0);
 		alGetSourcei(m_source, AL_SOURCE_STATE, &m_sourceState);
-		//alSourcei(m_source, AL_BUFFER, 0);
 
 		for (auto iter = m_bufferQueue.begin(); iter != m_bufferQueue.end(); ++iter)
 		{

@@ -34,8 +34,7 @@ private:
 	int UnqueueBuffer();
 
 private:
-	ALCdevice* m_pDevice = NULL;
-	ALCcontext* m_pContext = NULL;
+	ALCcontext* m_pContext = nullptr;
 
 	ALuint m_source = 0;
 	// 记录source应该处于什么状态，而非实际状态
