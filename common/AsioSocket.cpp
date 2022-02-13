@@ -102,13 +102,18 @@ int HttpClient::Abort()
 	}
 	if (m_pStreamBase && m_pStreamBase->socket().is_open())
 	{
-		//m_pStreamBase->close();
-		m_pStreamBase->cancel();
+		beast::close_socket(*m_pStreamBase);
 	}
 	if (m_pSSLStreamBase)
 	{
-		m_pSSLStreamBase->shutdown();
-		m_pSSLStreamBase.reset();
+		beast::close_socket(m_pSSLStreamBase->next_layer());
+
+		system::error_code ec;
+		//m_pSSLStreamBase->shutdown(ec);
+		if (ec)
+		{
+			LOG() <<  __FUNCTION__" " << ec.message();
+		}
 	}
 
 	auto size = m_buffer.size();
@@ -142,13 +147,13 @@ int HttpClient::Get(std::string url, DataCallback dataCb, ErrorCallback errorCb)
 
 	if (!m_pResolver)
 		m_pResolver.reset(new asio::ip::tcp::resolver(m_loop.AsioQueue().Context()));
-	m_pResolver->async_resolve(host, std::to_string(port),
+	m_pResolver->async_resolve(host, port !=0 ? std::to_string(port) : scheme,
 		[pThis = shared_from_this()](const system::error_code& err, asio::ip::tcp::resolver::results_type res){
 		pThis->OnResolver(err, res);
 	});
 
 	m_strUrl = url;
-	m_strHost = host;
+	m_strHost = host + (port != 0 ? ":"+std::to_string(port) : "");
 	m_strScheme = scheme;
 	m_strPath = path;
 	m_method = beast::http::verb::get;
@@ -164,9 +169,8 @@ void HttpClient::OnResolver(const boost::system::error_code& err, boost::asio::i
 		return;
 	}
 
-	if(!m_pStreamBase)
-		m_pStreamBase.reset(new beast::tcp_stream(m_loop.AsioQueue().Context()));
-	m_pStreamBase->expires_after(std::chrono::seconds(6));
+	m_pStreamBase.reset(new beast::tcp_stream(m_loop.AsioQueue().Context()));
+	m_pStreamBase->expires_after(std::chrono::seconds(15));
 	m_pStreamBase->async_connect(ep,
 		[pThis = shared_from_this()](const boost::system::error_code& err, asio::ip::tcp::endpoint ep){
 		pThis->OnConnect(err);
@@ -266,11 +270,11 @@ void HttpClient::OnRead(const boost::system::error_code& err, std::size_t n)
 	dic.insert("result", (int)result);
 	dic.insert("url", m_strUrl);
 
+	Abort();
 	if (m_cbData)
 	{
 		m_cbData(std::move(s), std::move(dic));
 	}
-	Abort();
 }
 
 void HttpClient::OnHandshake(const boost::system::error_code& err)
@@ -301,7 +305,7 @@ void HttpClient::DoRequest()
 {
 	auto pReq = std::make_shared<beast::http::request<beast::http::dynamic_body>>();
 	pReq->version(11);
-	pReq->set(beast::http::field::cache_control, "max-age=0");
+	pReq->set(beast::http::field::connection, "close");
 	pReq->set(beast::http::field::accept, "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8");
 	pReq->set(beast::http::field::user_agent, "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:95.0) Gecko/20100101 Firefox/95.0");
 	pReq->set(beast::http::field::accept_language, "zh-CN,zh;q=0.9,en;q=0.8");

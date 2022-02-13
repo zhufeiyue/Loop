@@ -226,9 +226,10 @@ int testBasePlayer(int argc, char* argv[])
 		pFile = "D:/迅雷下载/[阳光电影www.ygdy8.com].了不起的盖茨比.BD.720p.中英双字幕.rmvb";
 		pFile = "D:/迅雷云盘/楚门的世界.1080p.国英双语.BD中英双字/楚门的世界.1080p.国英双语.BD中英双字[66影视www.66Ys.Co].mp4";
 		pFile = "D:/迅雷云盘/The.Witcher.S02E01.A.Grain.of.Truth.1080p.NF.WEB-DL.DDP5.1.Atmos.x264-TEPES.mkv";
-		pFile = "D:/迅雷下载/[久久美剧www.jjmjtv.com]星际之门.宇宙.Stargate.Universe.S01E18.Chi_Eng.BD-HDTV.AC3.1024X576.x264-YYeTs.mkv";
 		pFile = "D:/迅雷下载/1/阳光电影www.ygdy8.com.007：无暇赴死.2021.BD.1080P.国英双语双字.mkv";
 		pFile = "D:/迅雷下载/1/FSDSS-083-C.mp4";
+		pFile = "D:/迅雷下载/[久久美剧www.jjmjtv.com]星际之门.宇宙.Stargate.Universe.S01E18.Chi_Eng.BD-HDTV.AC3.1024X576.x264-YYeTs.mkv";
+		pFile = "D:/迅雷下载/1/异星战场.John.Carter.2012.BD1080P.中英双字.mp4";
 	}
 	player.StartPlay(pFile);
 
@@ -270,11 +271,11 @@ int testQmlPlayer(int argc, char* argv[])
 	}
 	else
 	{
-		pFile = "D:/迅雷下载/[阳光电影www.ygdy8.com].了不起的盖茨比.BD.720p.中英双字幕.rmvb";
-		pFile = "D:/迅雷下载/1/FSDSS-083-C.mp4";
-		pFile = "D:/迅雷下载/1/阳光电影www.ygdy8.com.007：无暇赴死.2021.BD.1080P.国英双语双字.mkv";
 		pFile = "e:/1.mp4";
+		pFile = "D:/迅雷下载/1/阳光电影www.ygdy8.com.007：无暇赴死.2021.BD.1080P.国英双语双字.mkv";
 		pFile = "http://112.74.200.9:88/tv000000/m3u8.php?/migu/625204865";
+		pFile = "D:/迅雷下载/1/异星战场.John.Carter.2012.BD1080P.中英双字.mp4";
+		pFile = "D:/迅雷下载/[阳光电影www.ygdy8.com].了不起的盖茨比.BD.720p.中英双字幕.rmvb";
 	}
 	player.StartPlay(pFile);
 
@@ -296,5 +297,6 @@ int main(int argc, char* argv[])
 	//testBasePlayer(argc, argv);
 	//testQmlPlayer(argc, argv);
 	testHls();
+
 	return 0;
 }

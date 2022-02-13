@@ -2,11 +2,19 @@
 
 #include <common/Dic.h>
 #include <common/log.h>
-#include "M3U8Parser.h"
 
-class HttpClient;
 class HlsPlaylist
 {
+public:
+	struct Variant
+	{
+
+	};
+
+	struct Segment
+	{
+
+	};
 public:
 	HlsPlaylist();
 	~HlsPlaylist();
@@ -17,10 +25,10 @@ protected:
 	void OnGetM3U8(std::string, Dictionary);
 	void OnGetM3U8Error(Dictionary);
 
+	int FormatSubAddress(std::vector<Dictionary>&, std::string);
+
 protected:
-	std::string m_strM3U8Address;
-	std::shared_ptr<HttpClient> m_pHttpClient;
-	std::unique_ptr<M3U8Parser> m_pParser;
+
 };
 
 void testHls();

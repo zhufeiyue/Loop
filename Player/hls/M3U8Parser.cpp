@@ -1,5 +1,11 @@
 #include "M3U8Parser.h"
 
+#ifndef _MSC_VER
+#define stricmp strcasecmp
+#define strnicmp strncasecmp
+#endif
+std::vector<std::string> split_string(const std::string&, char);
+
 M3U8Parser::M3U8Parser(const std::string& strData)
 {
 	std::string strLine;
@@ -31,11 +37,11 @@ bool M3U8Parser::IsValid() const
 	return true;
 }
 
-bool M3U8Parser::IsMain() const
+bool M3U8Parser::IsMaster() const
 {
 	for (auto iter = m_vecLines.begin(); iter != m_vecLines.end(); ++iter)
 	{
-		if (strncmp(iter->c_str(), "#EXT-X-STREAM-INF", 17) == 0)
+		if (strncmp(iter->c_str(), "#EXT-X-STREAM-INF:", 18) == 0)
 		{
 			return true;
 		}
@@ -43,24 +49,42 @@ bool M3U8Parser::IsMain() const
 	return false;
 }
 
-bool M3U8Parser::IsVod() const
+std::string M3U8Parser::GetType() const
 {
+	for (auto iter = m_vecLines.begin(); iter != m_vecLines.end(); ++iter)
+	{
+		if (strncmp(iter->c_str(), "#EXT-X-PLAYLIST-TYPE:", 21) == 0)
+		{
+			// VOD playlist不可被修改，是点播
+			// EVENT playlist只能从尾部添加新segment。这与LIVE还有有区别，LIVE维护一个segment区间，可以从头部删除、尾部添加
+			if (strnicmp(iter->c_str() + 21, "VOD", 3) == 0)
+				return "VOD";
+			else if (strnicmp(iter->c_str() + 21, "EVENT", 5) == 0)
+				return "EVENT";
+		}
+	}
+
 	for (auto iter = m_vecLines.rbegin(); iter != m_vecLines.rend(); ++iter)
 	{
 		if (strncmp(iter->c_str(), "#EXT-X-ENDLIST", 14) == 0)
-		{
-			return true;
-		}
+			return "VOD";
 	}
-	return false;
+
+	return "LIVE";
 }
 
-bool M3U8Parser::IsLive() const
+int64_t M3U8Parser::GetSequenceNumber()const
 {
-	return !IsVod();
+	for (auto iter = m_vecLines.begin(); iter != m_vecLines.end(); ++iter)
+	{
+		if (strncmp(iter->c_str(), "#EXT-X-MEDIA-SEQUENCE:", 22) == 0)
+			return atoll(iter->c_str() + 22);
+	}
+
+	return 0;
 }
 
-int M3U8Parser::GetSubM3U8Info(std::vector<Dictionary>& items)
+int M3U8Parser::GetVariantInfo(std::vector<Dictionary>& items)
 {
 	items.clear();
 
@@ -68,7 +92,7 @@ int M3U8Parser::GetSubM3U8Info(std::vector<Dictionary>& items)
 	size_t pos;
 	for (size_t i = 0; i < m_vecLines.size(); ++i)
 	{
-		if (strncmp(m_vecLines[i].c_str(), "#EXT-X-STREAM-INF", 17) == 0)
+		if (strncmp(m_vecLines[i].c_str(), "#EXT-X-STREAM-INF:", 18) == 0)
 		{
 			if (i + 1 >= m_vecLines.size())
 			{
@@ -90,5 +114,33 @@ int M3U8Parser::GetSubM3U8Info(std::vector<Dictionary>& items)
 
 int M3U8Parser::GetSegmentInfo(std::vector<Dictionary>& items)
 {
+	items.clear();
+
+	Dictionary dic;
+	size_t pos;
+	for (size_t i = 0; i < m_vecLines.size(); ++i)
+	{
+		//#EXTINF:<duration>,[<title>]
+		if (strncmp(m_vecLines[i].c_str(), "#EXTINF:", 8) == 0)
+		{
+			if (i + 1 >= m_vecLines.size())
+			{
+				return -1;
+			}
+
+
+			auto temp = split_string(m_vecLines[i].c_str() + 8, ',');
+			if (!temp.empty())
+			{
+				dic.insert("duration", atof(temp[0].c_str()));
+			}
+			if (temp.size() == 2)
+			{
+				dic.insert("title", temp[1]);
+			}
+			dic.insert("address", m_vecLines[i + 1]);
+			items.push_back(std::move(dic));
+		}
+	}
 	return 0;
 }

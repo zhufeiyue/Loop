@@ -4,6 +4,7 @@
 #include <vector>
 #include <common/Dic.h>
 
+//https://datatracker.ietf.org/doc/html/rfc8216
 class M3U8Parser
 {
 public:
@@ -11,11 +12,11 @@ public:
 	~M3U8Parser();
 
 	bool IsValid() const;
-	bool IsMain() const;
-	bool IsLive() const;
-	bool IsVod() const;
+	bool IsMaster() const;
+	int64_t     GetSequenceNumber()const;
+	std::string GetType() const;
 
-	int GetSubM3U8Info(std::vector<Dictionary>&);
+	int GetVariantInfo(std::vector<Dictionary>&);
 	int GetSegmentInfo(std::vector<Dictionary>&);
 
 protected:
