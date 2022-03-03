@@ -43,6 +43,7 @@ OpenALDevice::OpenALDevice(std::string strDeviceName)
 	{
 		m_bufferUnQueue.push(m_buffer[i]);
 	}
+
 }
 
 OpenALDevice::~OpenALDevice()
@@ -154,18 +155,16 @@ int OpenALDevice::Play()
 	{
 		alSourcePlay(m_source);
 		alGetSourcei(m_source, AL_SOURCE_STATE, &m_sourceState);
-		if (m_sourceState == AL_INITIAL)
-		{
-			// 缺少queued buffer，调用alSourcePlay后，source state仍然处于initial状态
-			m_sourceState = AL_PLAYING;
-		}
-		else if (m_sourceState != AL_PLAYING)
+
+		// 缺少queued buffer，调用alSourcePlay后，source state仍然处于initial或stop状态
+		m_sourceState = AL_PLAYING;
+
+		auto err = alGetError();
+		if (err != alGetError())
 		{
 			LOG() << __FUNCTION__ << ' ' << alGetError();
 			return CodeNo;
 		}
-
-		//alSourcef(m_source, AL_PITCH, 1.5f);
 	}
 
 	return CodeOK;

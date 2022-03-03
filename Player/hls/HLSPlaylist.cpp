@@ -1,4 +1,5 @@
 #include <common/AsioSocket.h>
+#include <common/AsioHttp.h>
 #include <common/ParseUrl.h>
 #include "HLSPlaylist.h"
 #include "M3U8Parser.h"
@@ -9,11 +10,12 @@ void testHls()
 	auto thread = std::thread([&loop]() {
 		loop.Run();
 		});
+
 	auto pHlsPlaylist = new HlsPlaylist();
 	//pHlsPlaylist->SetM3U8Address("http://112.74.200.9:88/tv000000/m3u8.php?/migu/625204865");
 	//pHlsPlaylist->SetM3U8Address("http://112.74.200.9:88/tv000000/m3u8.php?/migu/637444830");
 	pHlsPlaylist->SetM3U8Address("https://newcntv.qcloudcdn.com/asp/hls/main/0303000a/3/default/4f7655094036437c8ec19bf50ba3a8e0/main.m3u8?maxbr=2048");
-
+	//pHlsPlaylist->SetM3U8Address("https://imgcdn.start.qq.com/cdn/win.client/installer/START-installer-v0.11.0.7841.exe");
 	thread.join();
 }
 
@@ -76,9 +78,9 @@ int HlsPlaylist::SetM3U8Address(std::string strAddress)
 
 int HlsPlaylist::GetM3U8(std::string strAddress)
 {
-	auto pHttpClient = std::make_shared<HttpClient>(GetLoop());
+	auto pHttpClient = std::make_shared<AsioHttpClient>();
 	pHttpClient->Get(strAddress,
-		[this](std::string data, Dictionary info) { this->OnGetM3U8(std::move(data), std::move(info)); },
+		[this](std::string_view data, Dictionary info) { this->OnGetM3U8(std::string(data), std::move(info)); },
 		[this](Dictionary error) { this->OnGetM3U8Error(std::move(error)); });
 
 	return CodeOK;

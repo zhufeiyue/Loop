@@ -85,7 +85,10 @@ FFmpegDemuxer::FFmpegDemuxer(std::string strMediaAddress)
 				* chiÖÐÎÄ
 				*/
 				if (av_strcasecmp(kv->value, "eng") == 0)
-					wantAudioStreamIndex = (int)i;
+				{
+					if (wantAudioStreamIndex == -1)
+						wantAudioStreamIndex = (int)i;
+				}
 				LOG() << kv->key << ":" << kv->value;
 			}
 		}

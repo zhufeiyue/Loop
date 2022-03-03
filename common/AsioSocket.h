@@ -1,7 +1,6 @@
 #pragma once
 #include "Dic.h"
 #include "EventLoop.h"
-#include <boost/beast.hpp>
 
 class UdpClient : public std::enable_shared_from_this<UdpClient>
 {
@@ -22,6 +21,9 @@ protected:
 	std::unique_ptr<boost::asio::ip::udp::socket>   m_pSocket;
 };
 
+#define UseBeast 0
+#if UseBeast
+#include <boost/beast.hpp>
 namespace boost {
 	namespace asio {
 		namespace ssl {
@@ -71,7 +73,10 @@ protected:
 	std::unique_ptr<boost::beast::ssl_stream<boost::beast::tcp_stream>> m_pSSLStreamBase;
 	std::unique_ptr<boost::asio::ssl::context> m_pSSLCtx;
 
-	boost::beast::multi_buffer m_buffer;
+	boost::beast::flat_buffer  m_buffer;
 	boost::beast::http::verb   m_method;
+private:
+	// message-oriented interface
 	boost::beast::http::response<boost::beast::http::dynamic_body> m_response;
 };
+#endif

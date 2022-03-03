@@ -84,7 +84,7 @@ void UdpClient::OnError(const boost::system::error_code& err)
 
 }
 
-
+#if UseBeast
 HttpClient::HttpClient(Eventloop& loop):
 	m_loop(loop)
 {
@@ -330,3 +330,4 @@ void HttpClient::DoRequest()
 		});
 	}
 }
+#endif
