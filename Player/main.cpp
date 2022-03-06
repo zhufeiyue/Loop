@@ -272,10 +272,12 @@ int testQmlPlayer(int argc, char* argv[])
 	else
 	{
 		pFile = "D:/迅雷下载/[阳光电影www.ygdy8.com].了不起的盖茨比.BD.720p.中英双字幕.rmvb";
-		pFile = "D:/迅雷下载/1/阳光电影www.ygdy8.com.007：无暇赴死.2021.BD.1080P.国英双语双字.mkv";
 		pFile = "D:/迅雷云盘/Veep (2012) - S07E07 - Veep (1080p BluRay x265 Silence).mkv";
-		pFile = "http://112.74.200.9:88/tv000000/m3u8.php?/migu/627198191";
 		pFile = "http://112.74.200.9:88/tv000000/m3u8.php?/migu/625204865";
+		pFile = "d:/myworld.wav";
+		pFile = "D:/迅雷下载/1/阳光电影www.ygdy8.com.007：无暇赴死.2021.BD.1080P.国英双语双字.mkv";
+		pFile = "D:/My World.mp3";
+		pFile = "http://112.74.200.9:88/tv000000/m3u8.php?/migu/627198191";
 	}
 	player.StartPlay(pFile);
 
@@ -297,9 +299,9 @@ int main(int argc, char* argv[])
 	av_log_set_callback(my_log_callback);
 	ChooseOpenGL();
 	//testBasePlayer(argc, argv);
-	//testQmlPlayer(argc, argv);
+	testQmlPlayer(argc, argv);
 	//testHls();
-	testAsioHttp();
+	//testAsioHttp();
 
 	return 0;
 }

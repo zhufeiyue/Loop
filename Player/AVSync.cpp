@@ -234,15 +234,18 @@ again:
 	else
 	{
 		n = pParam->pDecoder->GetNextFrame(videoFrame, 0);
-
-		if (n == CodeAgain && lateFrame)
+		if (n == CodeAgain)
 		{
-			// 重新使用，已经迟到的frame
-			LOG() << "reuse late frame";
-			n = CodeOK;
-			videoFrame = std::move(lateFrame);
+			if (lateFrame)
+			{
+				// 重新使用，已经迟到的frame
+				LOG() << "reuse late frame";
+				n = CodeOK;
+				videoFrame = std::move(lateFrame);
+			}
 		}
 	}
+
 	if (n == CodeOK)
 	{
 		int64_t videoPts;
@@ -295,6 +298,10 @@ again:
 	else if (n == CodeAgain)
 	{
 		LOG() << "no cached video frame";
+	}
+	else if (n == CodeEnd)
+	{
+		//LOG() << "end of video";
 	}
 	else
 	{

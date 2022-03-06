@@ -278,10 +278,6 @@ int DecodeFile::GetNextFrame(FrameHolderPtr& frameInfo, int type)
 	{
 		return CodeAgain;
 	}
-	if (m_bVideoDecodeError || m_bAudioDecodeError)
-	{
-		return CodeNo;
-	}
 
 	if (type == 0)
 	{
@@ -297,6 +293,15 @@ int DecodeFile::GetNextFrame(FrameHolderPtr& frameInfo, int type)
 
 int DecodeFile::GetNextVideoFrmae(FrameHolderPtr& frameInfo)
 {
+	if (m_bVideoDecodeError)
+	{
+		if (m_pDecoder->VideoDecodeError() == AVERROR_EOF && !m_pDecoder->IsEOF())
+		{
+			return CodeEnd;
+		}
+		return CodeNo;
+	}
+
 	auto pFrame = m_cachedVideoFrame.Alloc();
 	if (!pFrame || m_iCachedFrameCount < 5)
 	{
@@ -390,6 +395,15 @@ int DecodeFile::DecodeVideoFrame()
 
 int DecodeFile::GetNextAudioFrame(FrameHolderPtr& frameInfo)
 {
+	if (m_bAudioDecodeError)
+	{
+		if (m_pDecoder->AudioDecodeError() == AVERROR_EOF && !m_pDecoder->IsEOF())
+		{
+			return CodeEnd;
+		}
+		return CodeNo;
+	}
+
 	auto pFrame = m_cacheAudioFrame.Alloc();
 	if (!pFrame || m_iCachedSampleCount < m_iAuioRate / 2)
 	{
@@ -450,6 +464,8 @@ int DecodeFile::DecodeAudioFrame(int& sampleCountGot)
 
 	auto pDecodeSample = m_pDecoder->GetAFrame();
 	sampleCountGot = pDecodeSample->nb_samples;
+	if (pDecodeSample->channel_layout == 0)
+		pDecodeSample->channel_layout = av_get_default_channel_layout(pDecodeSample->channels);
 
 	AV_CH_LAYOUT_STEREO;
 	auto pFrame = m_blankAudioFrame.Alloc("audio",

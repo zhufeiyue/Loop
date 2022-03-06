@@ -45,26 +45,30 @@ public:
 	AVPixelFormat       GetFrameFormat();
 
 	AVSampleFormat GetSampleFormat();
-	int GetSampleRate();
-	int GetSampleChannel();
+	int     GetSampleRate();
+	int     GetSampleChannel();
 	int64_t GetChannelLayout();
 	int64_t GetDuration();
 
 	AVRational GetVideoTimebase(int);
 	AVRational GetAudioTimebase(int);
 
+	int GetDemuxError();
+	bool IsEOF();
+
 	std::map<std::string, std::string> Parse_extradata(int);
 
 protected:
 	AVFormatContext* m_pFormatContext = nullptr;
-	int m_iInterrupt = 0;
-	int m_iVideoIndex = AVERROR_STREAM_NOT_FOUND;
-	int m_iAudioIndex = AVERROR_STREAM_NOT_FOUND;
-	bool m_bEnableVideo = true;
-	bool m_bEnableAudio = true;
+	int m_iInterrupt   = 0;
+	int m_iDemuxError  = 0;
+	int m_iVideoIndex    = AVERROR_STREAM_NOT_FOUND;
+	int m_iAudioIndex    = AVERROR_STREAM_NOT_FOUND;
+	bool m_bEnableVideo  = true;
+	bool m_bEnableAudio  = true;
 	AVCodecID m_vCodecID = AV_CODEC_ID_NONE;
 	AVCodecID m_aCodecID = AV_CODEC_ID_NONE;
-	AVPixelFormat m_pixFormat = AV_PIX_FMT_NONE;
+	AVPixelFormat m_pixFormat     = AV_PIX_FMT_NONE;
 	AVSampleFormat m_sampleFormat = AV_SAMPLE_FMT_NONE;
 
 	std::queue<AVPacket> m_vPackets;
@@ -91,6 +95,8 @@ public:
 	virtual int DecodeAudio(AVPacket&);
 	int DecodeVideoFrame();
 	int DecodeAudioFrame();
+	int VideoDecodeError();
+	int AudioDecodeError();
 
 	AVFrame* GetVFrame() { return m_pVFrame; }
 	AVFrame* GetAFrame() { return m_pAFrame; }
@@ -102,6 +108,9 @@ protected:
 	AVCodec* m_pACodec = nullptr;
 	AVFrame* m_pVFrame = nullptr;
 	AVFrame* m_pAFrame = nullptr;
+
+	int m_iDecodeAudioError = 0;
+	int m_iDecodeVideoError = 0;
 };
 
 class FFmpegHWDecode : public FFmpegDecode

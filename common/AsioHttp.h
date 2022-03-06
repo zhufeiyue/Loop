@@ -55,6 +55,7 @@ public:
 	virtual ~AsioHttpClient();
 
 	int Get(std::string, DataCb, ErrorCb);
+	int Abort();
 	virtual int64_t ContentLength();
 
 protected:
@@ -83,6 +84,10 @@ protected:
 	std::unique_ptr<boost::asio::ip::tcp::socket> m_pSocket;
 	std::unique_ptr<boost::asio::ssl::stream<boost::asio::ip::tcp::socket>> m_pSslSocket;
 
+	int64_t m_iContentLength = 0;
+	int64_t m_iContentReaded = 0;
+	int64_t m_iContentOffset = 0;
+
 	DataCb m_cbData;
 	ErrorCb m_cbError;
 };
@@ -99,13 +104,8 @@ public:
 	}
 
 protected:
-	void OnReadHeader(const boost::system::error_code&, std::size_t) override;
 	void OnReadBody(const boost::system::error_code&, std::size_t) override;
 
 protected:
-	int64_t m_iContentLength = 0;
-	int64_t m_iContentOffset = 0;
-	int64_t m_iContentReaded = 0;
-
 	ProgressCb m_cbProgress;
 };

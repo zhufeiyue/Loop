@@ -200,6 +200,7 @@ int FFmpegDemuxer::DemuxVideo(AVPacket& got)
 		if (n < 0)
 		{
 			PrintFFmpegError(n, __FUNCTION__ " av_read_frame");
+			m_iDemuxError = n;
 			return n;
 		}
 
@@ -271,7 +272,8 @@ int FFmpegDemuxer::DemuxAudio(AVPacket& got)
 		n = av_read_frame(m_pFormatContext, &got);
 		if (n < 0)
 		{
-			PrintFFmpegError(n, __FUNCTION__ "av_read_frame");
+			PrintFFmpegError(n, __FUNCTION__ " av_read_frame");
+			m_iDemuxError = n;
 			return n;
 		}
 
@@ -403,7 +405,14 @@ int64_t FFmpegDemuxer::GetChannelLayout()
 	if (m_iAudioIndex >= 0)
 	{
 		auto pStream = m_pFormatContext->streams[m_iAudioIndex];
-		return pStream->codecpar->channel_layout;
+		if (pStream->codecpar->channel_layout == 0)
+		{
+			return av_get_default_channel_layout(GetSampleChannel());
+		}
+		else
+		{
+			return pStream->codecpar->channel_layout;
+		}
 	}
 
 	return 0;
@@ -447,6 +456,26 @@ AVRational FFmpegDemuxer::GetAudioTimebase(int)
 	}
 
 	return tb;
+}
+
+int FFmpegDemuxer::GetDemuxError()
+{
+	return m_iDemuxError;
+}
+
+bool FFmpegDemuxer::IsEOF()
+{
+	if (m_iDemuxError != AVERROR_EOF)
+	{
+		return false;
+	}
+
+	if (!m_vPackets.empty() || !m_aPackets.empty())
+	{
+		return false;
+	}
+
+	return true;
 }
 
 int FFmpegDemuxer::Seek(int64_t target_pos, int64_t currPos)
@@ -772,6 +801,7 @@ read:
 	}
 	else
 	{
+		m_iDecodeVideoError = n;
 		return n;
 	}
 
@@ -788,6 +818,7 @@ decode:
 	else
 	{
 		// handle error
+		m_iDecodeVideoError = n;
 	}
 
 	return n;
@@ -808,6 +839,7 @@ read:
 	}
 	else
 	{
+		m_iDecodeAudioError = n;
 		return n;
 	}
 
@@ -824,9 +856,20 @@ decode:
 	else
 	{
 		// handle error
+		m_iDecodeAudioError = n;
 	}
 
 	return n;
+}
+
+int FFmpegDecode::VideoDecodeError()
+{
+	return m_iDecodeVideoError;
+}
+
+int FFmpegDecode::AudioDecodeError()
+{
+	return m_iDecodeAudioError;
 }
 
 

@@ -12,10 +12,14 @@ PlayerTimer::~PlayerTimer()
 
 int PlayerTimer::SetRate(double rate)
 {
-	if (rate < 1 || rate > 100)
-	{
-		return CodeNo;
-	}
+	//if (rate < 1 || rate > 100)
+	//{
+	//	return CodeNo;
+	//}
+	if (rate < 1)
+		rate = 1;
+	if (rate > 60)
+		rate = 60;
 
 	double dInterval = 1000.0 / rate;
 

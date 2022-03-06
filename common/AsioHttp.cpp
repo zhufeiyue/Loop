@@ -14,8 +14,10 @@ void testAsioHttp()
 		});
 
 	auto dataCb = [](std::string_view data, Dictionary info) {
+		LOG() << "got message";
+
 		std::ofstream fileOut;
-		fileOut.open("d:/1.rar", std::ofstream::binary | std::ofstream::out);
+		fileOut.open("d:/1.txt", std::ofstream::binary | std::ofstream::out);
 		if (fileOut.is_open())
 		{
 			fileOut.write(data.data(), data.size());
@@ -44,11 +46,10 @@ void testAsioHttp()
 			}
 		});
 
-	pClient->Get("https://newcntv.qcloudcdn.com/asp/hls/main/0303000a/3/default/4f7655094036437c8ec19bf50ba3a8e0/main.m3u8?maxbr=2048", dataCb, errorCb);
-	//pClient->Get("http://yd.downxia.com/down/kaopuzhushou.rar?key=ee8cdad7a6d6140f087c3d0ac9d4ddb5", dataCb, errorCb);
-	//pClient->Get("http://yd.downxia.com/down/kuaibos.rar?key=ee8cdad7a6d6140f087c3d0ac9d4ddb5", dataCb, errorCb);
-	//pClient->Get("https://imgcdn.start.qq.com/cdn/win.client/installer/START-installer-v0.11.0.7841.exe", dataCb, errorCb);
-	//pClient->Get("https://get.xunfs.com/app/listapp.php", dataCb, errorCb);
+	//pClient->Get("https://newcntv.qcloudcdn.com/asp/hls/main/0303000a/3/default/4f7655094036437c8ec19bf50ba3a8e0/main.m3u8?maxbr=2048", dataCb, errorCb);
+	//pClient->Get("https://res06.bignox.com/full/20220301/8cbb8a56e4ae46b0bb069d19ad1a7723.exe?filename=nox_setup_v7.0.2.2_full.exe", dataCb, errorCb);
+	//pClient->Get("http://112.74.200.9:88/tv000000/m3u8.php?/migu/625204865", dataCb, errorCb);
+	pClient->Get("https://cdnhp17.yesky.com/622465e5/6f7b262c103dc7d8d92ea8882d88c911/newsoft/3__5000557__3f7372633d6c6d266c733d6e32393464323930613961__68616f2e3336302e636e__0c6b.exe", dataCb, errorCb);
 	pClient.reset();
 
 	thread.join();
@@ -56,39 +57,12 @@ void testAsioHttp()
 
 AsioHttpClient::AsioHttpClient()
 {
-	m_responBuf.reserve(4 * 1024 * 1024);
+	m_responBuf.reserve(512 * 1024); // 512kb
 }
 
 AsioHttpClient::~AsioHttpClient()
 {
-	system::error_code err;
-
-	if (m_pSocket)
-	{
-		m_pSocket->close(err);
-	}
-	else if (m_pSslSocket)
-	{
-		m_pSslSocket->lowest_layer().cancel(err);
-		if (err)
-		{
-			LOG() << "ssl::stream lowest_layer cancel:" << err.message();
-		}
-
-		m_pSslSocket->shutdown(err);
-		if (err)
-		{
-			if (err != asio::ssl::error::stream_truncated)
-				LOG() << "ssl::stream shutdown:" << err.message();
-		}
-
-		m_pSslSocket->lowest_layer().close(err);
-	}
-
-	if (err)
-	{
-		LOG() <<  __FUNCTION__" close socket " <<  err.message();
-	}
+	Abort();
 }
 
 int AsioHttpClient::Get(std::string url, DataCb dataCb, ErrorCb errorCb)
@@ -123,6 +97,56 @@ int AsioHttpClient::Get(std::string url, DataCb dataCb, ErrorCb errorCb)
 	m_strPath = path;
 	m_cbData = std::move(dataCb);
 	m_cbError = std::move(errorCb);
+
+	return CodeOK;
+}
+
+int AsioHttpClient::Abort()
+{
+	system::error_code err;
+
+	if (m_pSocket)
+	{
+		m_pSocket->cancel(err);
+		if (err)
+		{
+			LOG() << "tcp socket cancel:" << err.message();
+		}
+
+		m_pSocket->close(err);
+		m_pSocket.reset();
+	}
+	else if (m_pSslSocket)
+	{
+		m_pSslSocket->lowest_layer().cancel(err);
+		if (err)
+		{
+			LOG() << "ssl::stream lowest_layer cancel:" << err.message();
+		}
+
+		m_pSslSocket->shutdown(err);
+		if (err)
+		{
+			if (err != asio::ssl::error::stream_truncated)
+				LOG() << "ssl::stream shutdown:" << err.message();
+		}
+
+		m_pSslSocket->lowest_layer().close(err);
+		m_pSslSocket.reset();
+	}
+	if (err)
+	{
+		LOG() << __FUNCTION__" close socket " << err.message();
+	}
+
+	m_iContentLength = 0;
+	m_iContentOffset = 0;
+	m_iContentReaded = 0;
+	m_responBuf.clear();
+	m_strResponCode.clear();
+	m_strResponReason.clear();
+	m_strResponVersion.clear();
+	m_mapResponHeaders.clear();
 
 	return CodeOK;
 }
@@ -170,6 +194,10 @@ void AsioHttpClient::OnResolver(const boost::system::error_code& err, boost::asi
 
 		// 如果不调用下面这句，在某些网站上，可能会握手失败
 		SSL_set_tlsext_host_name(m_pSslSocket->native_handle(), m_strHost.c_str());
+	}
+	else
+	{
+		return;
 	}
 
 	if (m_pSocket)
@@ -235,7 +263,33 @@ void AsioHttpClient::OnReadHeader(const boost::system::error_code& err, std::siz
 		return;
 	}
 
-	auto body_len = ContentLength();
+	auto code = std::atoi(m_strResponCode.c_str());
+	if (code == 301 || code == 302)
+	{
+		auto iter = m_mapResponHeaders.find("location");
+		if (iter != m_mapResponHeaders.end())
+		{
+			auto strUrl = iter->second;
+			LOG() << "redirect to " << strUrl;
+
+			Abort();
+			Get(strUrl, m_cbData, m_cbError);
+			return;
+		}
+	}
+
+	m_iContentLength = ContentLength();
+	m_iContentReaded = 0;
+	m_iContentOffset = header_len;
+
+	auto body_readed = m_responBuf.length() - header_len;
+	OnReadBody(err, body_readed);
+}
+
+void AsioHttpClient::OnReadBody(const boost::system::error_code& err, std::size_t)
+{
+	auto header_len = m_iContentOffset;
+	auto body_len = m_iContentLength;
 	if (body_len == 0)
 	{
 		OnError(system::error_code(
@@ -294,15 +348,8 @@ void AsioHttpClient::OnReadHeader(const boost::system::error_code& err, std::siz
 	}
 }
 
-void AsioHttpClient::OnReadBody(const boost::system::error_code& err, std::size_t read_len)
-{
-	// not implement
-}
-
 void AsioHttpClient::OnError(const boost::system::error_code& err)
 {
-	asio::error::eof;
-
 	if (m_cbError)
 	{
 		Dictionary dic;
@@ -405,7 +452,7 @@ int AsioHttpClient::ParseHeader(const std::string_view& strData)
 				value = std::string(line.data() + colonPos + 1, line.length() - colonPos - 1);
 
 				boost::to_lower(header);
-				//boost::trim(value);
+				boost::trim_left(value);
 
 				m_mapResponHeaders.insert(std::make_pair(std::move(header), std::move(value)));
 			}
@@ -423,31 +470,6 @@ int AsioHttpClient::ParseHeader(const std::string_view& strData)
 	return CodeOK;
 }
 
-
-void AsioHttpFile::OnReadHeader(const boost::system::error_code& err, std::size_t header_len)
-{
-	if (err)
-	{
-		OnError(err);
-		return;
-	}
-
-	auto header = std::string_view(m_responBuf.c_str(), header_len);
-	if (CodeOK != ParseHeader(header))
-	{
-		OnError(system::error_code(
-			AsioHttpClient::parse_response_header_error,
-			AsioHttpClient::custom_error_category()));
-		return;
-	}
-
-	m_iContentLength = ContentLength();
-	m_iContentReaded = 0;
-	m_iContentOffset = header_len;
-	
-	auto body_readed = m_responBuf.length() - header_len;
-	OnReadBody(err, body_readed);
-}
 
 void AsioHttpFile::OnReadBody(const boost::system::error_code& err, std::size_t readed_len)
 {

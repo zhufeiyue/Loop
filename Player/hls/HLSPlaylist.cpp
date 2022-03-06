@@ -12,9 +12,9 @@ void testHls()
 		});
 
 	auto pHlsPlaylist = new HlsPlaylist();
-	//pHlsPlaylist->SetM3U8Address("http://112.74.200.9:88/tv000000/m3u8.php?/migu/625204865");
+	pHlsPlaylist->SetM3U8Address("http://112.74.200.9:88/tv000000/m3u8.php?/migu/625204865");
 	//pHlsPlaylist->SetM3U8Address("http://112.74.200.9:88/tv000000/m3u8.php?/migu/637444830");
-	pHlsPlaylist->SetM3U8Address("https://newcntv.qcloudcdn.com/asp/hls/main/0303000a/3/default/4f7655094036437c8ec19bf50ba3a8e0/main.m3u8?maxbr=2048");
+	//pHlsPlaylist->SetM3U8Address("https://newcntv.qcloudcdn.com/asp/hls/main/0303000a/3/default/4f7655094036437c8ec19bf50ba3a8e0/main.m3u8?maxbr=2048");
 	//pHlsPlaylist->SetM3U8Address("https://imgcdn.start.qq.com/cdn/win.client/installer/START-installer-v0.11.0.7841.exe");
 	thread.join();
 }

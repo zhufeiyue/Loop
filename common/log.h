@@ -29,5 +29,6 @@ enum ErrorCode
 	CodeNo = -1,
 	CodeOK = 0,
 	CodeAgain = 1,
-	CodeRejection
+	CodeRejection,
+	CodeEnd
 };
