@@ -21,13 +21,13 @@ double GetSpeedByEnumValue(int iSpeed)
 
 int IAVSync::SetMediaInfo(Dictionary dic)
 {
-	if (dic.contain_key_value("hasVideo", 1))
+	if (dic.get<int>("hasVideo"))
 	{
 		m_originVideoTimebase.den = dic.find("videoTimebaseDen")->second.to<int>();
 		m_originVideoTimebase.num = dic.find("videoTimebaseNum")->second.to<int>();
 	}
 
-	if (dic.contain_key_value("hasAudio", 1))
+	if (dic.get<int>("hasAudio"))
 	{
 		m_originAudioTimebase.den = dic.find("audioTimebaseDen")->second.to<int>();
 		m_originAudioTimebase.num = dic.find("audioTimebaseNum")->second.to<int>();
@@ -124,31 +124,31 @@ int SyncAudio::Update(AVSyncParam* pParam)
 	{
 		return CodeOK;
 	}
-	m_timeLastUpdateAudio = pParam->now;
+
+	int32_t durationWaitPlay = 0;
+	pParam->pAudioRender->GetUseableDuration(durationWaitPlay);
+	if (durationWaitPlay > 300) // 300ms
+	{
+		m_timeLastUpdateAudio = pParam->now;
+		return CodeOK;
+	}
 
 	FrameHolderPtr frame;
 	int n = 0;
 
 again:
-	if (m_pCachedAudioFrame)
+	n = pParam->pDecoder->GetNextFrame(frame, 1);
+	if (n == CodeOK)
 	{
-		frame = std::move(m_pCachedAudioFrame);
-		n = CodeOK;
-	}
-	else
-	{
-		n = pParam->pDecoder->GetNextFrame(frame, 1);
-		if (n == CodeOK)
+		frame->SetSpeed((int32_t)m_playSpeed);
+		if (pParam->pFilterSpeed)
 		{
-			frame->SetSpeed((int32_t)m_playSpeed);
-			if (pParam->pFilterSpeed)
-			{
-				n = ProcessSpeedFilter(pParam->pFilterSpeed, frame);
-				if (n == CodeAgain)
-					goto again;
-			}
+			n = ProcessSpeedFilter(pParam->pFilterSpeed, frame);
+			if (n == CodeAgain)
+				goto again;
 		}
 	}
+
 
 	if (n == CodeOK)
 	{
@@ -166,13 +166,6 @@ again:
 		}
 		else if (n == CodeOK)
 		{
-			m_pCachedAudioFrame = std::move(frame);
-			m_iAudioUpdateInterval = 150;
-		}
-		else if (n == CodeRejection)
-		{
-			m_pCachedAudioFrame = std::move(frame);
-			m_iAudioUpdateInterval = 400;
 		}
 		else
 		{
@@ -182,6 +175,11 @@ again:
 	else if (n == CodeAgain)
 	{
 		LOG() << "no cached audio frame";
+	}
+	else if (n == CodeEnd)
+	{
+		//LOG() << "end of audio";
+		return pParam->pAudioRender->Flush();
 	}
 	else
 	{
@@ -193,9 +191,7 @@ again:
 
 int SyncAudio::Reset()
 {
-	m_pCachedAudioFrame.reset();
 	m_iAudioUpdateInterval = 150;
-
 	return CodeOK;
 }
 
@@ -262,7 +258,7 @@ again:
 			if (videoPts < audioPts - m_iUpdateInterval*3)
 			{
 				LOG() << "too late";
-				if (againCount < 3)
+				if (againCount < 5)
 				{
 					againCount += 1;
 					lateFrame = std::move(videoFrame);
@@ -277,7 +273,7 @@ again:
 				if (m_iSyncInterval < 200)
 					m_iSyncInterval = 200;
 			}
-			else if (videoPts > audioPts + m_iUpdateInterval / 2)
+			else if (videoPts > audioPts + m_iUpdateInterval)
 			{
 				LOG() << "too early";
 				m_pCachedVideoFrame = std::move(videoFrame);

@@ -13,7 +13,8 @@ public:
 
 	bool IsValid() const;
 	bool IsMaster() const;
-	int64_t     GetSequenceNumber()const;
+	int64_t     GetSequenceNumber() const;
+	int64_t     GetTargetDuration() const;
 	std::string GetType() const;
 
 	int GetVariantInfo(std::vector<Dictionary>&);
@@ -22,3 +23,5 @@ public:
 protected:
 	std::vector<std::string> m_vecLines;
 };
+
+int ParseM3U8(std::string, Dictionary&, std::vector<Dictionary>&);

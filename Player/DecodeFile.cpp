@@ -61,7 +61,10 @@ int DecodeFile::InitDecoder(std::string strMediaPath, IDecoder::Callback initCal
 				goto End;
 			}
 
-			m_pDecoder.reset(new FFmpegHWDecode(strMediaPath));
+			FileProvider* pFileProvider = nullptr;
+			//pFileProvider = new FileProvider(strMediaPath);
+
+			m_pDecoder.reset(new FFmpegHWDecode(strMediaPath, pFileProvider));
 			//m_pDecoder.reset(new FFmpegDecode(strMediaPath));
 
 			if (!m_pDecoder->ContainVideo() && !m_pDecoder->ContainAudio())
@@ -80,7 +83,7 @@ int DecodeFile::InitDecoder(std::string strMediaPath, IDecoder::Callback initCal
 
 			if (m_pDecoder->ContainVideo())
 			{
-				m_iMaxCacheVideoFrameCount = 10;
+				m_iMaxCacheVideoFrameCount = 6;
 				auto videoTimebase = m_pDecoder->GetVideoTimebase(0);
 
 				mediaInfo.insert("hasVideo", true);
@@ -293,8 +296,14 @@ int DecodeFile::GetNextFrame(FrameHolderPtr& frameInfo, int type)
 
 int DecodeFile::GetNextVideoFrmae(FrameHolderPtr& frameInfo)
 {
+	auto pFrame = m_cachedVideoFrame.Alloc();
+
 	if (m_bVideoDecodeError)
 	{
+		if (pFrame)
+		{
+			goto GotData;
+		}
 		if (m_pDecoder->VideoDecodeError() == AVERROR_EOF && !m_pDecoder->IsEOF())
 		{
 			return CodeEnd;
@@ -302,15 +311,14 @@ int DecodeFile::GetNextVideoFrmae(FrameHolderPtr& frameInfo)
 		return CodeNo;
 	}
 
-	auto pFrame = m_cachedVideoFrame.Alloc();
-	if (!pFrame || m_iCachedFrameCount < 5)
+	if (!pFrame || m_iCachedFrameCount < m_iMaxCacheVideoFrameCount / 2)
 	{
 		if (m_pEventLoop && m_pEventLoop->IsRunning() && !m_bVideoDecoding)
 		{
 			m_bVideoDecoding = true;
 			m_pEventLoop->AsioQueue().PushEvent([this]()
 				{
-					while (m_iCachedFrameCount < m_iMaxCacheVideoFrameCount && 
+					while (m_iCachedFrameCount < m_iMaxCacheVideoFrameCount &&
 						m_bVideoDecoding && !m_bVideoDecodeError)
 					{
 						if (DecodeVideoFrame() != CodeOK)
@@ -330,6 +338,7 @@ int DecodeFile::GetNextVideoFrmae(FrameHolderPtr& frameInfo)
 		}
 	}
 
+GotData:
 	if (pFrame)
 	{
 		m_iCachedFrameCount -= 1;
@@ -395,8 +404,15 @@ int DecodeFile::DecodeVideoFrame()
 
 int DecodeFile::GetNextAudioFrame(FrameHolderPtr& frameInfo)
 {
+	auto pFrame = m_cacheAudioFrame.Alloc();
+
 	if (m_bAudioDecodeError)
 	{
+		if (pFrame)
+		{
+			goto GotData;
+		}
+
 		if (m_pDecoder->AudioDecodeError() == AVERROR_EOF && !m_pDecoder->IsEOF())
 		{
 			return CodeEnd;
@@ -404,8 +420,7 @@ int DecodeFile::GetNextAudioFrame(FrameHolderPtr& frameInfo)
 		return CodeNo;
 	}
 
-	auto pFrame = m_cacheAudioFrame.Alloc();
-	if (!pFrame || m_iCachedSampleCount < m_iAuioRate / 2)
+	if (!pFrame || m_iCachedSampleCount < m_iMaxCacheAudioFrameCount / 2)
 	{
 		if (m_pEventLoop && m_pEventLoop->IsRunning() && !m_bAudioDecoding)
 		{
@@ -432,6 +447,7 @@ int DecodeFile::GetNextAudioFrame(FrameHolderPtr& frameInfo)
 		}
 	}
 
+GotData:
 	if (pFrame)
 	{
 		m_iCachedSampleCount -= pFrame->FrameData()->nb_samples;

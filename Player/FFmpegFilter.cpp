@@ -108,7 +108,24 @@ int FilterAudio::Process(AVFrame* pFrame)
 {
 	AV_BUFFERSRC_FLAG_KEEP_REF;
 
-	pFrame->opaque = (void*)pFrame->pts;
+	/*
+	todo
+	从av_buffersink_get_frame中得到的frame，其pts值与原始输入（av_buffersrc_add_frame中传入）的值不一致
+
+	使用函数av_buffersrc_add_frame_flags ，flag参数指定为AV_BUFFERSRC_FLAG_PUSH，是否可以立即得到输出？
+	*/
+	if (sizeof(void*) == 8)
+	{
+		pFrame->opaque = (void*)pFrame->pts;
+	}
+	else if(sizeof(void*) == 4)
+	{
+		pFrame->pkt_dts = pFrame->pts;
+	}
+	else
+	{
+		assert(0);
+	}
 
 	int result = 0;
 	result = av_buffersrc_add_frame(m_pBufferContext, pFrame);
@@ -131,7 +148,15 @@ int FilterAudio::Process(AVFrame* pFrame)
 	else
 	{
 		//LOG() << (int64_t)pFrame->opaque << " "<<  pFrame->pts << " " << pFrame->nb_samples;
-		pFrame->pts = (int64_t)pFrame->opaque;
+
+		if (sizeof(void*) == 8)
+		{
+			pFrame->pts = (int64_t)pFrame->opaque;
+		}
+		else
+		{
+			pFrame->pts = pFrame->pkt_dts;
+		}
 	}
 
 	return CodeOK;

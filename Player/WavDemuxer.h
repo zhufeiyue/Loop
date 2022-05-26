@@ -2,7 +2,7 @@
 
 #include <common/Log.h>
 
-#ifdef _MSC_VER
+#ifdef _WIN32
 #include <Windows.h>
 #include <mmreg.h>
 #else

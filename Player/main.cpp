@@ -21,6 +21,9 @@
 #include "FFmpegFilter.h"
 #include "qml/QuickVideoRender.h"
 #include "hls/HLSPlaylist.h"
+#include "hls/HLSProxy.h"
+#include "qloop.h"
+#include "SimpleHttpServer.h"
 
 #ifdef _MSC_VER
 #include <dwmapi.h>
@@ -208,12 +211,6 @@ int testBasePlayer(int argc, char* argv[])
 	w.show();
 	//w.showMaximized();
 
-	Player player;
-	PlayerControl playerControl(&player, &w);
-
-	player.InitVideoRender(&w);
-	player.InitAudioRender(nullptr);
-
 	const char* pFile = nullptr;
 	if (argc > 1)
 	{
@@ -226,18 +223,29 @@ int testBasePlayer(int argc, char* argv[])
 		pFile = "D:/Ñ¸À×ÏÂÔØ/[Ñô¹âµçÓ°www.ygdy8.com].ÁË²»ÆðµÄ¸Ç´Ä±È.BD.720p.ÖÐÓ¢Ë«×ÖÄ».rmvb";
 		pFile = "D:/Ñ¸À×ÔÆÅÌ/³þÃÅµÄÊÀ½ç.1080p.¹úÓ¢Ë«Óï.BDÖÐÓ¢Ë«×Ö/³þÃÅµÄÊÀ½ç.1080p.¹úÓ¢Ë«Óï.BDÖÐÓ¢Ë«×Ö[66Ó°ÊÓwww.66Ys.Co].mp4";
 		pFile = "D:/Ñ¸À×ÔÆÅÌ/The.Witcher.S02E01.A.Grain.of.Truth.1080p.NF.WEB-DL.DDP5.1.Atmos.x264-TEPES.mkv";
-		pFile = "D:/Ñ¸À×ÏÂÔØ/1/Ñô¹âµçÓ°www.ygdy8.com.007£ºÎÞÏ¾¸°ËÀ.2021.BD.1080P.¹úÓ¢Ë«ÓïË«×Ö.mkv";
-		pFile = "D:/Ñ¸À×ÏÂÔØ/1/FSDSS-083-C.mp4";
 		pFile = "D:/Ñ¸À×ÏÂÔØ/[¾Ã¾ÃÃÀ¾çwww.jjmjtv.com]ÐÇ¼ÊÖ®ÃÅ.ÓîÖæ.Stargate.Universe.S01E18.Chi_Eng.BD-HDTV.AC3.1024X576.x264-YYeTs.mkv";
-		pFile = "D:/Ñ¸À×ÏÂÔØ/1/ÒìÐÇÕ½³¡.John.Carter.2012.BD1080P.ÖÐÓ¢Ë«×Ö.mp4";
+		pFile = "D:/Ñ¸À×ÏÂÔØ/¡¾¸ßÇåMP4µçÓ°www.boxmp4.com¡¿2005.ÒøÊÎ.mkv";
+		pFile = "D:/Ñ¸À×ÏÂÔØ/Halo.S01E01.1080p.WEB.h264-KOGi[eztv.re].mkv";
+		pFile = "D:/Ñ¸À×ÏÂÔØ/1/Ñô¹âµçÓ°www.ygdy8.com.007£ºÎÞÏ¾¸°ËÀ.2021.BD.1080P.¹úÓ¢Ë«ÓïË«×Ö.mkv";
+		pFile = "http://112.74.200.9:88/tv000000/m3u8.php?/migu/625204865";
+
 	}
-	player.StartPlay(pFile);
+
+	Player* player = nullptr;
+	PlayerControl* playerControl = nullptr;
+
+	player = new Player();
+	playerControl = new PlayerControl(player, &w);
+	player->InitVideoRender(&w);
+	player->InitAudioRender(nullptr);
+	player->StartPlay(pFile);
 
 	auto result = app.exec();
 
-	player.StopPlay();
-	player.DestroyVideoRender();
-	player.DestroyAudioRender();
+	player->StopPlay();
+	player->DestroyVideoRender();
+	player->DestroyAudioRender();
+	delete player;
 
 	return result;
 }
@@ -246,6 +254,10 @@ int testQmlPlayer(int argc, char* argv[])
 {
 	QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 	QGuiApplication app(argc, argv);
+
+	QLoop q(nullptr);
+	//q.Run(app.thread());
+	q.Run(nullptr);
 
 	QuickVideoRenderObject::Register();
 
@@ -261,10 +273,6 @@ int testQmlPlayer(int argc, char* argv[])
 	auto pVideoRender = rootObj->findChild<QuickVideoRenderObject*>("render1");
 
 	const char* pFile = nullptr;
-	Player player;
-
-	player.InitVideoRender(pVideoRender);
-	player.InitAudioRender(nullptr);
 	if (argc > 1)
 	{
 		pFile = argv[1];
@@ -273,19 +281,39 @@ int testQmlPlayer(int argc, char* argv[])
 	{
 		pFile = "D:/Ñ¸À×ÏÂÔØ/[Ñô¹âµçÓ°www.ygdy8.com].ÁË²»ÆðµÄ¸Ç´Ä±È.BD.720p.ÖÐÓ¢Ë«×ÖÄ».rmvb";
 		pFile = "D:/Ñ¸À×ÔÆÅÌ/Veep (2012) - S07E07 - Veep (1080p BluRay x265 Silence).mkv";
-		pFile = "http://112.74.200.9:88/tv000000/m3u8.php?/migu/625204865";
 		pFile = "d:/myworld.wav";
-		pFile = "D:/Ñ¸À×ÏÂÔØ/1/Ñô¹âµçÓ°www.ygdy8.com.007£ºÎÞÏ¾¸°ËÀ.2021.BD.1080P.¹úÓ¢Ë«ÓïË«×Ö.mkv";
 		pFile = "D:/My World.mp3";
+		pFile = "D:/Ñ¸À×ÏÂÔØ/Halo.S01E01.1080p.WEB.h264-KOGi[eztv.re].mkv";
+		pFile = "D:/Ñ¸À×ÏÂÔØ/WeChat_20220328223801.mp4";
+		pFile = "D:/Ñ¸À×ÏÂÔØ/1/Ñô¹âµçÓ°www.ygdy8.com.007£ºÎÞÏ¾¸°ËÀ.2021.BD.1080P.¹úÓ¢Ë«ÓïË«×Ö.mkv";
+		pFile = "http://112.74.200.9:88/tv000000/m3u8.php?/migu/625204865";
 		pFile = "http://112.74.200.9:88/tv000000/m3u8.php?/migu/627198191";
 	}
-	player.StartPlay(pFile);
+
+	Player* player = nullptr;
+
+	q.PushEvent([=, &player] 
+		{
+			player = new Player();
+			player->InitVideoRender(pVideoRender);
+			player->InitAudioRender(nullptr);
+			player->StartPlay(pFile);
+
+			return 0;
+		});
 
 	auto result = app.exec();
 
-	player.StopPlay();
-	player.DestroyVideoRender();
-	player.DestroyAudioRender();
+	q.PushEvent([player]
+		{
+			player->StopPlay();
+			player->DestroyVideoRender();
+			player->DestroyAudioRender();
+			delete player;
+			return 0;
+		});
+	std::this_thread::sleep_for(std::chrono::milliseconds(20));
+	q.Exit();
 
 	return result;
 }
@@ -302,6 +330,8 @@ int main(int argc, char* argv[])
 	testQmlPlayer(argc, argv);
 	//testHls();
 	//testAsioHttp();
+	//testHttpServer(argc, argv);
+	//testHlsProxy(argc, argv);
 
 	return 0;
 }

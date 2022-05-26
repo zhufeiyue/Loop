@@ -5,6 +5,14 @@
 
 #include <QQuickItem>
 
+class UpdateHelper : public QObject
+{
+	Q_OBJECT
+public:
+Q_SIGNALS:
+	void sigUpdate();
+};
+
 class VideoRenderQuick : public IRender
 {
 public:
@@ -26,6 +34,7 @@ private:
 
 private:
 	QQuickItem* m_pRenderObject = nullptr;
+	UpdateHelper* m_pHelper = nullptr;
 
 	int m_iWidth = 0;
 	int m_iHeight = 0;

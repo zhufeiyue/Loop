@@ -345,7 +345,7 @@ void RenderYUV420P::UpdateVideoTexture(int videoWidth, int videoHeight, const ui
 	bool bSetRowLength = false;
 
 	// 如果数据的行宽，大于需要，通过设置GL_UNPACK_ROW_LENGTH参数，可以达到裁剪、抠图的目的
-	if (pLineSize[0] > videoWidth)
+	if (pLineSize[0] > videoWidth || pLineSize[1] > videoWidth / 2)
 	{
 		bSetRowLength = true;
 	}
@@ -685,13 +685,16 @@ AVPixelFormat VideoOpenGLWidget::GetSupportedPixformat()
 	return AV_PIX_FMT_YUV420P;
 }
 
+void VideoOpenGLWidget::SetRenderDataSource(VideoRenderOpenGLWidget* pSource)
+{
+	m_pDataSource = pSource;
+}
+
 void VideoOpenGLWidget::SetVideoSize(int videoWidth, int videoHeight)
 {
 	if (m_pRender)
 	{
-		makeCurrent();
 		m_pRender->SetSize(videoWidth, videoHeight, width(), height());
-		doneCurrent();
 	}
 }
 
@@ -699,9 +702,7 @@ void VideoOpenGLWidget::UpdateTexture(int w, int h, const uint8_t* const* pData,
 {
 	if (m_pRender)
 	{
-		makeCurrent();
 		m_pRender->UpdateVideoTexture(w, h, pData, pLineSize);
-		doneCurrent();
 	}
 }
 
@@ -750,6 +751,11 @@ void VideoOpenGLWidget::resizeGL(int w, int h)
 
 void VideoOpenGLWidget::paintGL()
 {
+	if (m_pDataSource)
+	{
+		m_pDataSource->PrepareRender();
+	}
+
 	if (m_pRender)
 	{
 		m_pRender->Paint();
@@ -760,6 +766,7 @@ void VideoOpenGLWidget::paintGL()
 VideoRenderOpenGLWidget::VideoRenderOpenGLWidget(VideoOpenGLWidget* pWidget):
 	m_pVideoWidget(pWidget)
 {
+	m_pVideoWidget->SetRenderDataSource(this);
 }
 
 VideoRenderOpenGLWidget::~VideoRenderOpenGLWidget()
@@ -772,7 +779,7 @@ int VideoRenderOpenGLWidget::ConfigureRender(RenderInfo mediaInfo)
 
 	if (type == "init")
 	{
-		if (!mediaInfo.contain_key_value("hasVideo", 1))
+		if (!mediaInfo.get<int>("hasVideo"))
 		{
 			return CodeNo;
 		}
@@ -782,14 +789,12 @@ int VideoRenderOpenGLWidget::ConfigureRender(RenderInfo mediaInfo)
 		auto rate = mediaInfo.find("videoRate")->second.to<double>(1.0);
 		auto format = mediaInfo.find("videoFormat")->second.to<int>(-1);
 
-		return ConfigureRender(width, height, (AVPixelFormat)format);
+		return CodeOK;
 	}
 	else
 	{
 		return CodeNo;
 	}
-
-	return CodeOK;
 }
 
 int VideoRenderOpenGLWidget::ConfigureRender(int width, int height, AVPixelFormat format)
@@ -834,6 +839,21 @@ int VideoRenderOpenGLWidget::UpdataFrame(FrameHolderPtr data)
 		return CodeInvalidParam;
 	}
 
+	m_videoFrameData = std::move(data);
+
+	m_pVideoWidget->update();
+
+	return CodeOK;
+}
+
+int VideoRenderOpenGLWidget::PrepareRender()
+{
+	auto data = m_videoFrameData;
+	if (!data)
+	{
+		return CodeAgain;
+	}
+
 	AVFrame* pFrame = data->FrameData();
 	auto pImagedata = pFrame->data;
 	auto pImageLineSize = pFrame->linesize;
@@ -861,7 +881,6 @@ int VideoRenderOpenGLWidget::UpdataFrame(FrameHolderPtr data)
 	}
 
 	m_pVideoWidget->UpdateTexture(m_iWidth, m_iHeight, pImagedata, pImageLineSize);
-	m_pVideoWidget->update();
 
 	return CodeOK;
 }
@@ -878,6 +897,11 @@ int VideoRenderOpenGLWidget::Pause(bool)
 
 int VideoRenderOpenGLWidget::Stop()
 {
+	if (m_pVideoWidget)
+	{
+		m_pVideoWidget->SetRenderDataSource(nullptr);
+	}
+
 	return CodeOK;
 }
 

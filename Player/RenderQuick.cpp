@@ -1,8 +1,16 @@
 #include "RenderQuick.h"
 #include "qml/QuickVideoRender.h"
+#include <QThread>
+#include <QApplication>
 
 VideoRenderQuick::VideoRenderQuick(QQuickItem* pRenderObject)
 {
+	if (qApp->thread() != QThread::currentThread())
+	{
+		m_pHelper = new UpdateHelper();
+		QObject::connect(m_pHelper, &UpdateHelper::sigUpdate, pRenderObject, &QQuickItem::update);
+	}
+
 	m_pRenderObject = pRenderObject;
 	static_cast<QuickVideoRenderObject*>(m_pRenderObject)->SetDataCallback(
 		[this](QuickVideoRenderObject::QuickRenderData& renderData) {
@@ -56,6 +64,11 @@ VideoRenderQuick::VideoRenderQuick(QQuickItem* pRenderObject)
 
 VideoRenderQuick::~VideoRenderQuick()
 {
+	if (m_pHelper)
+	{
+		delete m_pHelper;
+		m_pHelper = nullptr;
+	}
 }
 
 int VideoRenderQuick::ConfigureRender(RenderInfo mediaInfo)
@@ -64,7 +77,7 @@ int VideoRenderQuick::ConfigureRender(RenderInfo mediaInfo)
 
 	if (type == "init")
 	{
-		if (!mediaInfo.contain_key_value("hasVideo", 1))
+		if (!mediaInfo.get<int>("hasVideo"))
 		{
 			return CodeNo;
 		}
@@ -79,14 +92,12 @@ int VideoRenderQuick::ConfigureRender(RenderInfo mediaInfo)
 		auto rate = mediaInfo.find("videoRate")->second.to<double>(1.0);
 		auto format = mediaInfo.find("videoFormat")->second.to<int>(-1);
 
-		//return ConfigureRender(width, height, (AVPixelFormat)format);
+		return CodeOK;
 	}
 	else
 	{
 		return CodeNo;
 	}
-
-	return CodeOK;
 }
 
 int VideoRenderQuick::ConfigureRender(int width, int height, AVPixelFormat format)
@@ -118,7 +129,16 @@ int VideoRenderQuick::ConfigureRender(int width, int height, AVPixelFormat forma
 int VideoRenderQuick::UpdataFrame(FrameHolderPtr data)
 {
 	m_videoFrameData = std::move(data);
-	m_pRenderObject->update();
+
+	if (!m_pHelper)
+	{
+		m_pRenderObject->update();
+	}
+	else
+	{
+		emit m_pHelper->sigUpdate();
+	}
+
 	return CodeOK;
 }
 
@@ -134,7 +154,9 @@ int VideoRenderQuick::Pause(bool)
 
 int VideoRenderQuick::Stop()
 {
+	static_cast<QuickVideoRenderObject*>(m_pRenderObject)->SetDataCallback(QuickVideoRenderObject::RenderDataFunc());
 	m_videoFrameData.reset();
+
 	return CodeOK;
 }
 

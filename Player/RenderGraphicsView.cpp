@@ -94,7 +94,7 @@ int VideoRenderGraphicsView::ConfigureRender(RenderInfo mediaInfo)
 
 	if (type == "init")
 	{
-		if (!mediaInfo.contain_key_value("hasVideo", 1))
+		if (!mediaInfo.get<int>("hasVideo"))
 		{
 			return CodeNo;
 		}

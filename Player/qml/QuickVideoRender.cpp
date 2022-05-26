@@ -371,7 +371,7 @@ void QuickRenderYUV420P::UpdateVideoTexture(int videoWidth, int videoHeight, con
     bool bSetRowLength = false;
 
     // 如果数据的行宽，大于需要，通过设置GL_UNPACK_ROW_LENGTH参数，可以达到裁剪、抠图的目的
-    if (pLineSize[0] > videoWidth)
+    if (pLineSize[0] > videoWidth || pLineSize[1] > videoWidth/2)
     {
         bSetRowLength = true;
     }

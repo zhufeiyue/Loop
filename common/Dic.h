@@ -16,7 +16,13 @@ public:
 		//explicit DictionaryHelper(const double& v) : data(v) {}
 
 		template <typename T>
-		explicit DictionaryHelper(const T& v) : data(v) {}
+		explicit DictionaryHelper(const T& v) : data(v) 
+		{
+		}
+		template <typename T>
+		explicit DictionaryHelper(T&& v) : data(std::forward<T>(v)) 
+		{
+		}
 
 		template<typename T>
 		T to(T defaultValue = T()) const
@@ -27,8 +33,14 @@ public:
 			}
 			catch (std::bad_variant_access const&)
 			{
-				return std::move(defaultValue);
+				return defaultValue;
 			}
+		}
+
+		template <typename T>
+		const T& toRef() const
+		{
+			return std::get<T>(data);
 		}
 
 	private:
@@ -44,6 +56,25 @@ public:
 	InsRetVal insert(const std::string& key, const T& value)
 	{
 		return m_data.insert(std::make_pair(key, DictionaryHelper(value)));
+	}
+	template<typename T>
+	InsRetVal insert(const std::string& key, T&& value)
+	{
+		return m_data.insert(std::make_pair(key, DictionaryHelper(std::forward<T>(value))));
+	}
+
+	template<typename T>
+	T get(const std::string key) const
+	{
+		auto iter = m_data.find(key);
+		if (iter != m_data.end()) 
+		{
+			return iter->second.to<T>();
+		}
+		else
+		{
+			return T();
+		}
 	}
 
 	Iterator begin() { return m_data.begin(); }
@@ -69,21 +100,10 @@ public:
 		return find(key) != m_data.end();
 	}
 
-	template<typename T>
-	bool contain_key_value(const std::string& key, const T& value)const
+	void clear()
 	{
-		auto iter = find(key);
-		if (iter != m_data.end())
-		{
-			if (iter->second.to<T>() == value)
-			{
-				return true;
-			}
-		}
-
-		return false;
+		m_data.clear();
 	}
-
 private:
 	Data m_data;
 };

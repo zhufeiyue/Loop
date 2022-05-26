@@ -27,16 +27,18 @@ public:
 		const uint8_t* const* pData = nullptr;
 	};
 
+	typedef std::function<int(QuickRenderData&)> RenderDataFunc;
+
 public:
 	QuickVideoRenderObject(QQuickItem* parent = nullptr);
 	~QuickVideoRenderObject();
 
-	void SetDataCallback(std::function<int(QuickRenderData&)> func)
+	void SetDataCallback(RenderDataFunc func)
 	{
 		m_funcGetCurrentVideoFrame = std::move(func);
 	}
 
-	const std::function<int(QuickRenderData&)>& GetDataCallback() const
+	const RenderDataFunc& GetDataCallback() const
 	{
 		return m_funcGetCurrentVideoFrame;
 	}
@@ -53,7 +55,7 @@ private:
 	Renderer* createRenderer() const override;
 
 private:
-	std::function<int(QuickRenderData&)> m_funcGetCurrentVideoFrame;
+	RenderDataFunc m_funcGetCurrentVideoFrame;
 };
 
 class QuickRenderBgra : protected QOpenGLFunctions

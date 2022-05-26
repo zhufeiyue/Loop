@@ -201,7 +201,7 @@ int OpenALDevice::Stop()
 
 		for (auto iter = m_bufferQueue.begin(); iter != m_bufferQueue.end(); ++iter)
 		{
-			m_bufferUnQueue.push(std::get<0>(*iter));
+			m_bufferUnQueue.push(iter->id);
 		}
 		m_bufferQueue.clear();
 	}
@@ -220,7 +220,7 @@ int OpenALDevice::Reset()
 	alSourcei(m_source, AL_BUFFER, 0);
 	for (auto iter = m_bufferQueue.begin(); iter != m_bufferQueue.end(); ++iter)
 	{
-		m_bufferUnQueue.push(std::get<0>(*iter));
+		m_bufferUnQueue.push(iter->id);
 	}
 	m_bufferQueue.clear();
 	if (m_sourceState == AL_PLAYING)
@@ -277,8 +277,8 @@ int OpenALDevice::GetPlayPosition(int64_t& pts)
 	}
 	else
 	{
-		bufStartPts = std::get<1>(m_bufferQueue.front());
-		bufSpeed = std::get<3>(m_bufferQueue.front());
+		bufStartPts = m_bufferQueue.front().pts;
+		bufSpeed = m_bufferQueue.front().speed;
 		alGetSourcei(m_source, AL_SAMPLE_OFFSET, &sampleOffsetOfCurrentBuf);
 		if (alGetError() != AL_NO_ERROR)
 		{
@@ -290,6 +290,22 @@ int OpenALDevice::GetPlayPosition(int64_t& pts)
 	pts = bufStartPts + 
 		std::round(GetSpeedByEnumValue(bufSpeed) * 1000 * sampleOffsetOfCurrentBuf / m_iSamplePerSecond);
 
+	return CodeOK;
+}
+
+int OpenALDevice::GetUseableDuration(int32_t& duration)
+{
+	std::lock_guard<std::mutex> guard(m_lock);
+
+	UnqueueBuffer();
+
+	uint32_t n = 0;
+	for (auto iter = m_bufferQueue.begin(); iter != m_bufferQueue.end(); ++iter)
+	{
+		n += iter->duration;
+	}
+
+	duration = static_cast<int32_t>(n);
 	return CodeOK;
 }
 
@@ -319,7 +335,7 @@ int OpenALDevice::AppendWavData(BufPtr data, int64_t pts, int32_t speed)
 	{
 		ALint iState;
 		auto bufferCount = sizeof(m_buffer) / sizeof(m_buffer[0]); // 总的buffer的数量
-		if (m_bufferUnQueue.size() >= bufferCount-1) // 处于unqueue状态的buffer太多，播放可能已经停止
+		if (m_bufferUnQueue.size() >= bufferCount) // 处于unqueue状态的buffer太多，播放可能已经停止
 		{
 			LOG() << "check source state";
 			alGetSourcei(m_source, AL_SOURCE_STATE, &iState);
@@ -337,8 +353,14 @@ int OpenALDevice::AppendWavData(BufPtr data, int64_t pts, int32_t speed)
 	alBufferData(uiBuffer, m_format, data->DataConst(), data->PlayloadSize(), m_iSamplePerSecond);
 	alSourceQueueBuffers(m_source, 1, &uiBuffer);
 
-	// buffer id,buffer pts,buffer size(in byte),buffer speed
-	m_bufferQueue.push_back(std::make_tuple(uiBuffer, pts, data->PlayloadSize(), speed));
+	BufInfo bufInfo;
+	bufInfo.id = uiBuffer;
+	bufInfo.pts = pts;
+	bufInfo.size = data->PlayloadSize();
+	bufInfo.speed = speed;
+	bufInfo.sampleCount = bufInfo.size / m_iBlockAlign;
+	bufInfo.duration = 1000 * bufInfo.sampleCount / m_iSamplePerSecond;
+	m_bufferQueue.push_back(bufInfo);
 
 	if (bAutoRePlay) 
 	{
@@ -357,7 +379,7 @@ int OpenALDevice::UnqueueBuffer()
 	{
 		ALuint temp[16] = { 0 };
 		alSourceUnqueueBuffers(m_source, iBuffersProcessed, temp);
-		for (auto i = 0; i < iBuffersProcessed; ++i)
+		for (ALint i = 0; i < iBuffersProcessed; ++i)
 		{
 			m_bufferUnQueue.push(temp[i]);
 
@@ -365,12 +387,12 @@ int OpenALDevice::UnqueueBuffer()
 			auto bok = false;
 			for (; iter != m_bufferQueue.end(); ++iter)
 			{
-				if (std::get<0>(*iter) == temp[i])
+				if (iter->id == temp[i])
 				{
-					m_iBufPts = std::get<1>(*iter);
-					m_iBufSize = std::get<2>(*iter);
-					m_iBufSpeed = std::get<3>(*iter);
-					m_iBufSampleCount = m_iBufSize / m_iBlockAlign;
+					m_iBufPts = iter->pts;
+					m_iBufSize = iter->size;
+					m_iBufSpeed = iter->speed;
+					m_iBufSampleCount = iter->sampleCount;
 
 					m_bufferQueue.erase(iter);
 					bok = true;
@@ -389,57 +411,61 @@ int OpenALDevice::UnqueueBuffer()
 }
 
 
-int AudioDataCacheConvert::Convert(const uint8_t** ppInData, int incount, int64_t inPts, int64_t& outPts)
+int AudioDataCacheConvert::Convert(std::vector<FrameHolderPtr>& frames, int& outSampleCount)
 {
-	/*
-	* 利用swr_convert的性质，转换、缓存，不超过一定数量的音频帧
-	* 
-	* 通过outPts获得，一段数据的起始pts
-	* 通过bReject获得，当前输入数据是否被处理
-	* 返回值，负数-发生错误，0-需要更多的输入，正数-得到输出帧数
-	*/
+	int32_t sampleCount = 0;
+	int32_t ret;
+	int64_t outPts;
+	AVFrame* pFrame;
 
-	if (!m_pASwr)
+	if (frames.empty())
 	{
-		return CodeNo;
+		outSampleCount = 0;
+		return CodeOK;
 	}
 
-	int outcount = swr_get_out_samples(m_pASwr, incount);
-	int n = 0;
-
-	if (outcount > m_pFrame->nb_samples)
+	for (size_t i = 0; i < frames.size(); ++i)
 	{
-		n = swr_convert(m_pASwr, m_pFrame->data, m_pFrame->nb_samples, nullptr, 0);
-		outPts = m_iPts;
-		m_iPts = -1;
+		sampleCount += frames[i]->FrameData()->nb_samples;
 	}
-	else
+
+	if (sampleCount > this->m_pFrame->nb_samples)
 	{
-		if (m_iPts == -1)
+		auto pBiggerFrame = av_frame_alloc();
+		pBiggerFrame->format = m_pFrame->format;
+		pBiggerFrame->channel_layout = m_pFrame->channel_layout;
+		pBiggerFrame->sample_rate = m_pFrame->sample_rate;
+		pBiggerFrame->nb_samples = sampleCount;
+		av_frame_get_buffer(pBiggerFrame, 0);
+
+		if (m_pFrame)
 		{
-			m_iPts = inPts;
+			av_frame_free(&m_pFrame);
 		}
-		n = swr_convert(m_pASwr, m_pFrame->data, 0, ppInData, incount);
+		m_pFrame = pBiggerFrame;
 	}
 
-	return n;
-}
-
-int AudioDataCacheConvert::FlushCachedData(int64_t& outPts)
-{
-	if (!m_pASwr || !m_pFrame)
+	for (size_t i = 0; i < frames.size(); ++i)
 	{
+		pFrame = frames[i]->FrameData();
+		ret = swr_convert(m_pASwr, (uint8_t**)m_pFrame->data, 0, (const uint8_t**)pFrame->data, pFrame->nb_samples);
+		if (ret < 0)
+		{
+			PrintFFmpegError(ret, "swr_convert");
+			return CodeNo;
+		}
+	}
+
+	ret = swr_convert(m_pASwr, m_pFrame->data, m_pFrame->nb_samples, nullptr, 0);
+	if (ret < 0)
+	{
+		PrintFFmpegError(ret, "swr_convert");
 		return CodeNo;
 	}
 
-	if (m_iPts == -1)
-	{
-		// no cached data
-		return 0;
-	}
+	outSampleCount = ret;
 
-	int n = swr_convert(m_pASwr, m_pFrame->data, m_pFrame->nb_samples, nullptr, 0);
-	return n;
+	return CodeOK;
 }
 
 
@@ -457,47 +483,46 @@ int RenderOpenAL::ConfigureRender(RenderInfo info)
 	{
 		return CodeNo;
 	}
-	auto audioFormat = (AVSampleFormat)iter->second.to<int32_t>();
+	m_sampleFormat = (AVSampleFormat)iter->second.to<int32_t>();
 
 	iter = info.find("audioRate");
 	if (iter == info.end())
 	{
 		return CodeNo;
 	}
-	auto audioRate = iter->second.to<int32_t>();
+	m_sampleRate = iter->second.to<int32_t>();
 
 	iter = info.find("audioChannel");
 	if (iter == info.end())
 	{
 		return CodeNo;
 	}
-	auto channel = iter->second.to<int>();
+	m_sampleChannel = iter->second.to<int>();
 
 	iter = info.find("audioChannelLayout");
 	if (iter == info.end())
 	{
 		return CodeNo;
 	}
-	auto channelLayout = iter->second.to<int64_t>();
+	m_sampleChannelLayout = iter->second.to<int64_t>();
 
-	int sampleCountAppend = audioRate / 4;
 	//if (audioFormat != AV_SAMPLE_FMT_S16 || channel != 2)
 	{
 		m_pAudioConvert.reset(new AudioDataCacheConvert());
 		res = m_pAudioConvert->Configure(
-			audioRate, channelLayout, audioFormat,
-			audioRate, av_get_default_channel_layout(2), AV_SAMPLE_FMT_S16,
-			sampleCountAppend);
+			m_sampleRate, m_sampleChannelLayout, m_sampleFormat,
+			m_sampleRate, av_get_default_channel_layout(2), AV_SAMPLE_FMT_S16,
+			m_sampleRate / 2);
 		if (res != CodeOK)
 		{
 			return CodeNo;
 		}
 	}
 
-	m_pAudioData.reset(new Buf(sampleCountAppend * 4));
+	m_pAudioData.reset(new Buf(m_sampleRate / 2 * 4));
 
 	m_pPlayDevice.reset(new OpenALDevice(""));
-	if (CodeOK != m_pPlayDevice->Configure(16, audioRate, 2, 0))
+	if (CodeOK != m_pPlayDevice->Configure(16, m_sampleRate, 2, 0))
 	{
 		return CodeNo;
 	}
@@ -507,66 +532,113 @@ int RenderOpenAL::ConfigureRender(RenderInfo info)
 	return CodeOK;
 }
 
-int RenderOpenAL::UpdataFrame(FrameHolderPtr inData)
+int RenderOpenAL::Flush()
 {
-	if (m_bAudioDataValid)
+	if (!m_pAudioConvert)
 	{
-		return AppendOpenALData();
-	}
-
-	int n = 0;
-	int64_t outPts = 0;
-
-	if (inData->Speed() != m_iAudioDataSpeed)
-	{
-		n = m_pAudioConvert->FlushCachedData(outPts);
-		if (n < 0)
-		{
-			return CodeNo;
-		}
-		if (n == 0)
-		{
-			m_iAudioDataSpeed = inData->Speed();
-		}
-		else
-		{
-			auto audioSize = n * 4;
-			auto pOutFrame = m_pAudioConvert->Frame();
-
-			memcpy(m_pAudioData->Data(), pOutFrame->data[0], audioSize);
-			m_pAudioData->PlayloadSize() = audioSize;
-			m_iAudioDataPts = outPts;
-			m_bAudioDataValid = true;
-
-			return AppendOpenALData();
-		}
-	}
-
-	n = m_pAudioConvert->Convert(
-		(const uint8_t**)inData->FrameData()->data,
-		inData->FrameData()->nb_samples,
-		inData->UniformPTS(), outPts);
-
-	if (n < 0)
-	{
+		LOG() << __FUNCTION__ << __LINE__;
 		return CodeNo;
 	}
 
-	if (n == 0)
+	if (m_audioFrames.empty())
 	{
-		return CodeAgain;
+		return CodeOK;
 	}
-	else
+
+	int32_t sampleGot = 0;
+	auto ret = m_pAudioConvert->Convert(m_audioFrames, sampleGot);
+	if (ret != CodeOK)
 	{
-		auto audioSize = n * 4;
+		return ret;
+	}
+
+	int32_t firstPts = m_audioFrames[0]->UniformPTS();
+	int32_t firstSpeed = m_audioFrames[0]->Speed();
+
+	m_audioFrames.clear();
+	m_audioSampleCount = 0;
+
+	{
+		auto audioSize = sampleGot * 4;
 		auto pOutFrame = m_pAudioConvert->Frame();
 
 		memcpy(m_pAudioData->Data(), pOutFrame->data[0], audioSize);
 		m_pAudioData->PlayloadSize() = audioSize;
-		m_iAudioDataPts = outPts;
-		m_bAudioDataValid = true;
 
-		return AppendOpenALData();
+
+		ret = m_pPlayDevice->AppendWavData(m_pAudioData, firstPts, firstSpeed);
+		if (ret == CodeOK)
+		{
+		}
+		else if (ret == CodeRejection)
+		{
+			LOG() << "AppendWavData rejection";
+		}
+		else
+		{
+			return CodeNo;
+		}
+		
+		return CodeOK;
+	}
+}
+
+int RenderOpenAL::GetUseableDuration(int32_t& duration)
+{
+	if (!m_pPlayDevice)
+	{
+		return CodeNo;
+	}
+
+	duration = 0;
+	return m_pPlayDevice->GetUseableDuration(duration);
+}
+
+int RenderOpenAL::UpdataFrame(FrameHolderPtr inData)
+{
+	auto pFrame = inData->FrameData();
+	int ret = -1;
+
+	if (pFrame->format != m_sampleFormat ||
+		pFrame->channel_layout != m_sampleChannelLayout ||
+		pFrame->sample_rate != m_sampleRate ||
+		inData->Speed() != m_sampleSpeed)
+	{
+		ret = Flush();
+		if (ret != CodeOK)
+		{
+			return ret;
+		}
+
+		m_sampleFormat = (AVSampleFormat)pFrame->format;
+		m_sampleChannelLayout = pFrame->channel_layout;
+		m_sampleChannel = pFrame->channels;
+		m_sampleRate = pFrame->sample_rate;
+		m_sampleSpeed = inData->Speed();
+
+		m_pAudioData.reset(new Buf(m_sampleRate * 4));
+
+		m_pAudioConvert.reset(new AudioDataCacheConvert());
+		ret = m_pAudioConvert->Configure(
+			m_sampleRate, m_sampleChannelLayout, m_sampleFormat,
+			m_sampleRate, av_get_default_channel_layout(2), AV_SAMPLE_FMT_S16,
+			m_sampleRate);
+		if (ret != CodeOK)
+		{
+			return ret;
+		}
+	}
+
+	m_audioFrames.push_back(std::move(inData));
+	m_audioSampleCount += pFrame->nb_samples;
+	
+	if (m_audioSampleCount >= m_sampleRate / 5)
+	{
+		return Flush();
+	}
+	else
+	{
+		return CodeAgain;
 	}
 }
 
@@ -599,6 +671,10 @@ int RenderOpenAL::Reset()
 	{
 		m_pPlayDevice->Reset();
 	}
+
+	m_audioFrames.clear();
+	m_audioSampleCount = 0;
+
 	return CodeOK;
 }
 
@@ -652,26 +728,10 @@ int RenderOpenAL::SetVolume(int iVolume)
 
 int RenderOpenAL::AppendOpenALData()
 {
-	int result;
-
-	result = m_pPlayDevice->AppendWavData(m_pAudioData, m_iAudioDataPts, m_iAudioDataSpeed);
-	if (result == CodeOK)
-	{
-		m_bAudioDataValid = false;
-	}
-	else if (result == CodeRejection)
-	{
-	}
-	else
-	{
-		m_bAudioDataValid = false;
-		return CodeNo;
-	}
-
-	return result;
+	return CodeOK;
 }
 
-
+#if _WIN32
 void testPlayWav()
 {
 	static BufPool<48000, 96000> bufPool;
@@ -759,3 +819,4 @@ end:
 	delete pOpenALDevice;
 	delete pWavFile;
 }
+#endif

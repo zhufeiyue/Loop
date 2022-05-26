@@ -17,6 +17,7 @@ extern "C"
 #include <cassert>
 #include <iostream>
 #include <iomanip>
+#include <fstream>
 #include <string>
 #include <queue>
 #include <map>
@@ -24,10 +25,32 @@ extern "C"
 
 void PrintFFmpegError(int code, const char* strPrefix = nullptr);
 
+class CustomIOProvider
+{
+public:
+	virtual ~CustomIOProvider() {}
+	virtual void    Reset() = 0;
+	virtual int     Read(uint8_t* buf, int size) = 0;
+	virtual int64_t Seek(int64_t offset, int whence) = 0;
+};
+
+class FileProvider : public CustomIOProvider
+{
+public:
+	FileProvider(std::string);
+	void    Reset();
+	int     Read(uint8_t* buf, int size);
+	int64_t Seek(int64_t offset, int whence);
+
+private:
+	std::ifstream m_file;
+	int64_t       m_fileSize = 0;
+};
+
 class FFmpegDemuxer
 {
 public:
-	FFmpegDemuxer(std::string);
+	FFmpegDemuxer(std::string, CustomIOProvider* );
 	virtual ~FFmpegDemuxer();
 	friend int InterruptCB(void*);
 	virtual int Seek(int64_t, int64_t);
@@ -60,6 +83,7 @@ public:
 
 protected:
 	AVFormatContext* m_pFormatContext = nullptr;
+	AVIOContext*     m_pIOContext = nullptr;
 	int m_iInterrupt   = 0;
 	int m_iDemuxError  = 0;
 	int m_iVideoIndex    = AVERROR_STREAM_NOT_FOUND;
@@ -86,7 +110,7 @@ protected:
 class FFmpegDecode : public FFmpegDemuxer
 {
 public:
-	FFmpegDecode(std::string);
+	FFmpegDecode(std::string, CustomIOProvider*);
 	~FFmpegDecode();
 	int Seek(int64_t, int64_t) override;
 
@@ -118,7 +142,7 @@ class FFmpegHWDecode : public FFmpegDecode
 public:
 	friend enum AVPixelFormat get_hw_format(AVCodecContext*, const enum AVPixelFormat*);
 
-	FFmpegHWDecode(std::string);
+	FFmpegHWDecode(std::string, CustomIOProvider*);
 	~FFmpegHWDecode();
 	int CreateDecoder();
 	int DecodeVideo(AVPacket&);

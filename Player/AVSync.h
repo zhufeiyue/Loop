@@ -16,9 +16,9 @@ double GetSpeedByEnumValue(int);
 
 struct AVSyncParam
 {
-	IDecoder* pDecoder = nullptr;
-	IRender* pVideoRender = nullptr;
-	IRender* pAudioRender = nullptr;
+	IDecoder*     pDecoder = nullptr;
+	IRender*      pVideoRender = nullptr;
+	IAudioRender* pAudioRender = nullptr;
 	FilterAudio* pFilterVolume = nullptr;
 	FilterAudio* pFilterSpeed = nullptr;
 	PlaySpeed    playSpeed = PlaySpeed::Speed_1X;
@@ -64,7 +64,6 @@ private:
 
 private:
 	std::chrono::steady_clock::time_point m_timeLastUpdateAudio;
-	FrameHolderPtr                        m_pCachedAudioFrame;
 	int                                   m_iAudioUpdateInterval = 150;
 };
 

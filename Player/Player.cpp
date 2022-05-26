@@ -5,6 +5,8 @@
 #include "RenderOpenAL.h"
 #include "RenderQuick.h"
 
+#include "hls/DecodeHls.h"
+
 template<typename T>
 static Nursery<T>& GetNursery()
 {
@@ -42,6 +44,7 @@ int Player::StartPlay(std::string strMediaPath)
 		this, SLOT(OnDecoderInited(quint64)), Qt::QueuedConnection);
 
 	m_pDecoder.reset(new DecodeFile);
+	//m_pDecoder.reset(new DecodeHls);
 	m_pDecoder->InitDecoder(strMediaPath, [=](IDecoder::MediaInfo mediaInfo)
 		{
 			auto value = std::shared_ptr<IDecoder::MediaInfo>(new IDecoder::MediaInfo(std::move(mediaInfo)));

@@ -1,181 +1,349 @@
-#include <common/AsioSocket.h>
-#include <common/AsioHttp.h>
-#include <common/ParseUrl.h>
 #include "HLSPlaylist.h"
 #include "M3U8Parser.h"
 
-void testHls()
+static HlsVariant::Type String2HlsVariantType(const std::string& strType)
 {
-	Eventloop loop;
-	auto thread = std::thread([&loop]() {
-		loop.Run();
-		});
+	auto type = HlsVariant::Type::Unknown;
+	if (strType == "LIVE")
+		type = HlsVariant::Type::Live;
+	else if (strType == "VOD")
+		type = HlsVariant::Type::Vod;
+	else if (strType == "EVENT")
+		type = HlsVariant::Type::Event;
 
-	auto pHlsPlaylist = new HlsPlaylist();
-	pHlsPlaylist->SetM3U8Address("http://112.74.200.9:88/tv000000/m3u8.php?/migu/625204865");
-	//pHlsPlaylist->SetM3U8Address("http://112.74.200.9:88/tv000000/m3u8.php?/migu/637444830");
-	//pHlsPlaylist->SetM3U8Address("https://newcntv.qcloudcdn.com/asp/hls/main/0303000a/3/default/4f7655094036437c8ec19bf50ba3a8e0/main.m3u8?maxbr=2048");
-	//pHlsPlaylist->SetM3U8Address("https://imgcdn.start.qq.com/cdn/win.client/installer/START-installer-v0.11.0.7841.exe");
-	thread.join();
+	return type;
 }
-
-std::vector<std::string> split_string(const std::string& s, char ch)
+static std::string HlsVariantType2String(HlsVariant::Type type)
 {
-	std::istringstream stream(s);
-	std::string strPart;
-	std::vector<std::string> parts;
-
-	while (std::getline(stream, strPart, ch))
+	switch (type)
 	{
-		parts.push_back(std::move(strPart));
+	case HlsVariant::Type::Live:
+		return "LIVE";
+	case HlsVariant::Type::Vod:
+		return "VOD";
+	case HlsVariant::Type::Event:
+		return "EVENT";
 	}
 
-	return parts;
+	return "unknown";
 }
 
-
-static std::string join_string(const std::vector<std::string>& items, char ch)
+HlsSegment::HlsSegment(Dictionary& dic)
 {
-	std::string res;
-	for (size_t i = 0; i < items.size(); ++i)
-	{
-		res += items[i];
-		if (i != items.size() - 1)
-		{
-			res += ch;
-		}
-	}
-
-	return res;
+	this->no = dic.get<int64_t>("no");
+	this->strAddress = dic.get<std::string>("address");
+	this->duration = dic.get<double>("duration");
 }
 
-static bool is_absolute_uri(const std::string& uri)
+int HlsSegment::Prepare()
 {
-#if  WIN32
-	if (strnicmp(uri.c_str(), "http", 4) == 0)
-#else
-	if(strncasecmp(uri.c_str(), "http", 4) == 0)
-#endif
-	{
-		return true;
-	}
-
-	return false;
-}
-
-HlsPlaylist::HlsPlaylist()
-{
-}
-
-HlsPlaylist::~HlsPlaylist()
-{
-}
-
-int HlsPlaylist::SetM3U8Address(std::string strAddress)
-{
-	return GetM3U8(strAddress);
-}
-
-int HlsPlaylist::GetM3U8(std::string strAddress)
-{
-	auto pHttpClient = std::make_shared<AsioHttpClient>();
-	pHttpClient->Get(strAddress,
-		[this](std::string_view data, Dictionary info) { this->OnGetM3U8(std::string(data), std::move(info)); },
-		[this](Dictionary error) { this->OnGetM3U8Error(std::move(error)); });
-
 	return CodeOK;
 }
 
-void HlsPlaylist::OnGetM3U8(std::string data, Dictionary returnInfo)
+
+HlsVariant::HlsVariant(Dictionary& dic)
 {
-	auto result = returnInfo.find("result")->second.to<int>();
-	auto url = returnInfo.find("url")->second.to<std::string>();
-	auto isMaster = false;
-	if (result != 200)
+	m_variantType = String2HlsVariantType(dic.get<std::string>("type"));
+	m_targetDuration = dic.get<int64_t>("targetDuration");
+	m_bandWidth = dic.get<int64_t>("bandwidth");
+	m_strAddress = dic.get<std::string>("address");
+	m_strResolution = dic.get<std::string>("resolution");
+	m_timePointLastAccess = std::chrono::steady_clock::now();
+}
+
+HlsVariant::~HlsVariant()
+{
+}
+
+HlsVariant::Type HlsVariant::GetType()
+{
+	return m_variantType;
+}
+
+int HlsVariant::Append(std::vector<std::shared_ptr<HlsSegment>>& segs)
+{
+	if (segs.empty())
 	{
-		return;
+		return CodeNo;
 	}
 
-	auto pParser = std::make_shared<M3U8Parser>(data);
-	if (!pParser->IsValid())
+	// 认为segs是有序的，以no排序
+
+	if (m_segs.empty())
 	{
-		LOG() << "invalid m3u8 " << url;
-		return;
+		m_segs = std::move(segs);
+		m_iCurrentSegIndex = 0;
+		return CodeOK;
 	}
 
-	std::vector<Dictionary> infos;
-	if (pParser->IsMaster())
+	auto oldSegNo = m_segs.back()->GetNo();
+	auto iter = std::find_if(segs.begin(), segs.end(), [oldSegNo](std::shared_ptr<HlsSegment>& p)
+		{
+			if (p)
+				return p->GetNo() == oldSegNo;
+			else
+				return false;
+		});
+
+	if (iter != segs.end())
 	{
-		pParser->GetVariantInfo(infos);
-		isMaster = true;
+		iter = iter + 1;
+		for (; iter != segs.end(); ++iter)
+		{
+			m_segs.push_back(std::move(*iter));
+		}
 	}
 	else
 	{
-		pParser->GetSegmentInfo(infos);
-		LOG() << pParser->GetType();
-		LOG() << "sequence number: " << pParser->GetSequenceNumber();
-	}
-
-	if (CodeOK != FormatSubAddress(infos, url))
-	{
-		LOG() << "FormatSubAddress error";
-		return;
-	}
-
-	if (isMaster)
-	{
-		auto sub_url = infos[0].find("address")->second.to<std::string>();
-		GetM3U8(sub_url);
-	}
-}
-
-void HlsPlaylist::OnGetM3U8Error(Dictionary errInfo)
-{
-	auto message = errInfo.find("message")->second.to<std::string>();
-	LOG() << message;
-}
-
-int HlsPlaylist::FormatSubAddress(std::vector<Dictionary>& sub_items, std::string m3u8_url)
-{
-	std::string host;
-	std::string scheme;
-	std::string path;
-	int port(0);
-
-	if (!ParseUrl(m3u8_url, scheme, host, path, port))
-	{
-		LOG() << __FUNCTION__ << " parse url error: " << m3u8_url;
-		return CodeNo;
-	}
-	auto paths = split_string(path, '/');
-	if (paths.empty())
-	{
-		LOG() << __FUNCTION__;
-		return CodeNo;
-	}
-
-	//下面这个循环，计算子地址
-	for (auto iter = sub_items.begin(); iter != sub_items.end(); ++iter)
-	{
-		std::string sub_uri = iter->find("address")->second.to<std::string>();
-		if (is_absolute_uri(sub_uri))
+		LOG() << "seg no mismatch!!!";
+		auto firstNewSegNo = segs.front()->GetNo();
+		auto lastNewSegNo = segs.back()->GetNo();
+		if (firstNewSegNo > oldSegNo)
 		{
-			continue;
+			for (iter = segs.begin(); iter != segs.end(); ++iter)
+			{
+				m_segs.push_back(std::move(*iter));
+			}
 		}
-
-		std::string sub_url;
-		if (sub_uri[0] == '/')
+		else if (lastNewSegNo < oldSegNo)
 		{
+			return CodeNo;
 		}
 		else
 		{
-			auto temp = paths;
-			temp.back() = sub_uri;
-			sub_uri = join_string(temp, '/');
+			return CodeNo;
 		}
-
-		sub_url = scheme + "://" +  host + (port!=0 ? ":"+std::to_string(port) : "") + sub_uri;
-		iter->find("address")->second = Dictionary::DictionaryHelper(sub_url);
 	}
+
+
 	return CodeOK;
+}
+
+int HlsVariant::Clear()
+{
+	m_segs.clear();
+	m_iCurrentSegIndex = 0;
+	return CodeOK;
+}
+
+int HlsVariant::Update()
+{
+	Dictionary info;
+	std::vector<Dictionary> items;
+	int ret;
+
+#ifdef _DEBUG
+	auto last = std::chrono::steady_clock::now();
+	ret = ParseM3U8(m_strAddress, info, items);
+	auto now = std::chrono::steady_clock::now();
+	LOG() << "ParseM3U8 use " << std::chrono::duration_cast<std::chrono::milliseconds>(now - last).count() << "ms";
+#else
+	ret = ParseM3U8(m_strAddress, info, items);
+#endif
+	if (ret != CodeOK)
+	{
+		return ret;
+	}
+
+	auto isMaster = info.get<int>("master");
+	if (isMaster)
+	{
+		LOG() << "shouldn't be master m3u8";
+		return CodeNo;
+	}
+
+	auto targetDuration = info.get<int64_t>("targetDuration");
+	if (targetDuration > m_targetDuration)
+	{
+		m_targetDuration = targetDuration;
+	}
+
+	m_variantType = String2HlsVariantType(info.get<std::string>("type"));
+
+	std::vector<std::shared_ptr<HlsSegment>> segs;
+	for (auto iter = items.begin(); iter != items.end(); ++iter)
+	{
+		segs.push_back(std::make_shared<HlsSegment>(*iter));
+	}
+	Append(segs);
+
+	return CodeOK;
+}
+
+int HlsVariant::Seek(int)
+{
+	return CodeOK;
+}
+
+int HlsVariant::InitPlay()
+{
+	int ret = CodeNo;
+
+	if (GetType() == Type::Unknown || m_segs.empty())
+	{
+		ret = Update();
+		if (ret != CodeOK)
+		{
+			return ret;
+		}
+	}
+
+	auto type = GetType();
+	if (type == Type::Unknown || m_segs.empty())
+	{
+		LOG() << "cann't init play for this variant. type: "
+			<< HlsVariantType2String(type)
+			<< "; segment number: " << m_segs.size();
+		return CodeNo;
+	}
+
+	if (type == Type::Vod)
+	{
+		// 点播从头开始播
+		m_iCurrentSegIndex = 0;
+	}
+	else if(type == Type::Live || type == Type::Event)
+	{
+		m_iCurrentSegIndex = (int64_t)m_segs.size() - 3; // 从倒数第3个开播
+		if (m_iCurrentSegIndex < 0)
+		{
+			m_iCurrentSegIndex = 0;
+		}
+	}
+	else
+	{
+		LOG() << "fatal error " __FUNCTION__;
+		return CodeNo;
+	}
+
+	m_segs[m_iCurrentSegIndex]->Prepare();
+
+	return CodeOK;
+}
+
+int HlsVariant::GetCurrentSegment(std::shared_ptr<HlsSegment>& pSeg)
+{
+	if (m_variantType == Type::Live)
+	{
+		auto now = std::chrono::steady_clock::now();
+		auto interval = now - m_timePointLastAccess;
+		LOG() << "m3u8 request interval " << std::chrono::duration_cast<std::chrono::milliseconds>(interval).count();
+		m_timePointLastAccess = now;
+		if (interval > std::chrono::seconds(60))
+		{
+			Clear();
+			if (CodeOK != Update())
+			{
+				LOG() << "update error";
+				return CodeNo;
+			}
+		}
+	}
+
+	if (m_iCurrentSegIndex < 0 || m_iCurrentSegIndex >= (int64_t)m_segs.size())
+	{
+		return CodeNo;
+	}
+
+	pSeg = m_segs[m_iCurrentSegIndex];
+	m_iCurrentSegIndex += 1;
+
+	return CodeOK;
+}
+
+int64_t HlsVariant::GetTargetDuration() const
+{
+	return m_targetDuration;
+}
+
+int HlsVariant::Prepare()
+{
+	if (m_variantType == Type::Live)
+	{
+		if (m_iCurrentSegIndex >= (int64_t)m_segs.size() - 1)
+		{
+			Update();
+		}
+	}
+
+	return CodeOK;
+}
+
+
+int HlsPlaylist::GetCurrentVariant(std::shared_ptr<HlsVariant>& pVariant)
+{
+	if (!m_pCurrentVariant)
+	{
+		return CodeNo;
+	}
+
+	pVariant = m_pCurrentVariant;
+
+	return CodeOK;
+}
+
+int HlsPlaylist::SwitchVariant(Dictionary)
+{
+	return 0;
+}
+
+int HlsPlaylist::InitPlaylist(std::string strPlaylistUrl)
+{
+	Dictionary info;
+	std::vector<Dictionary> items;
+
+	auto ret = ParseM3U8(strPlaylistUrl, info, items);
+	if (ret != CodeOK)
+	{
+		return ret;
+	}
+
+	auto isMaster = info.get<int>("master");
+	if (isMaster)
+	{
+		for (auto iter = items.begin(); iter != items.end(); ++iter)
+		{
+			m_variants.push_back(std::make_shared<HlsVariant>(*iter));
+		}
+	}
+	else
+	{
+		auto pVariant = std::make_shared<HlsVariant>(info);
+
+		std::vector<std::shared_ptr<HlsSegment>> segs;
+		for (auto iter = items.begin(); iter != items.end(); ++iter)
+		{
+			segs.push_back(std::make_shared<HlsSegment>(*iter));
+		}
+		pVariant->Append(segs);
+
+		m_variants.push_back(std::move(pVariant));
+	}
+
+	return InitDefaultVariant();
+}
+
+int HlsPlaylist::InitDefaultVariant()
+{
+	if (m_variants.empty())
+	{
+		LOG() << "no variant";
+		return CodeNo;
+	}
+
+	// todo 下面直接使用第一个variant作为默认
+	m_pCurrentVariant = m_variants.front();
+
+	return m_pCurrentVariant->InitPlay();
+}
+
+void testHls()
+{
+	auto pHlsPlaylist = new HlsPlaylist();
+	//pHlsPlaylist->InitPlaylist("http://112.74.200.9:88/tv000000/m3u8.php?/migu/625204865");
+	//pHlsPlaylist->InitPlaylist("http://112.74.200.9:88/tv000000/m3u8.php?/migu/637444830");
+	//pHlsPlaylist->InitPlaylist("https://newcntv.qcloudcdn.com/asp/hls/main/0303000a/3/default/4f7655094036437c8ec19bf50ba3a8e0/main.m3u8?maxbr=2048");
+	pHlsPlaylist->InitPlaylist("http://183.207.249.9/PLTV/3/224/3221225548/index.m3u8");
+
+	std::this_thread::sleep_for(std::chrono::seconds(120));
 }

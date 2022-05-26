@@ -12,10 +12,24 @@
 #include "WavDemuxer.h"
 #include "FFmpegDemuxer.h"
 
+#if _WIN32
+
 void testPlayWav();
+
+#endif
 
 class OpenALDevice
 {
+	struct BufInfo
+	{
+		ALuint id;
+		uint32_t size;
+		uint32_t sampleCount;
+		uint32_t duration;
+		int32_t speed;
+		int64_t pts;
+	};
+
 public:
 	OpenALDevice(std::string);
 	~OpenALDevice();
@@ -28,6 +42,7 @@ public:
 	int SetVolume(float v);
 	int GetVolume(float& v);
 	int GetPlayPosition(int64_t&);
+	int GetUseableDuration(int32_t&);
 	int AppendWavData(BufPtr, int64_t pts = 0, int32_t speed = 0);
 
 private:
@@ -40,9 +55,9 @@ private:
 	// 记录source应该处于什么状态，而非实际状态
 	ALint m_sourceState = 0;
 
-	ALuint m_buffer[4] = { 0 };
+	ALuint m_buffer[6] = { 0 };
 	std::queue<ALuint> m_bufferUnQueue;
-	std::deque<std::tuple<ALuint, int64_t, uint32_t, int32_t>> m_bufferQueue;
+	std::deque<BufInfo> m_bufferQueue;
 	int64_t m_iBufPts         = 0;
 	int32_t m_iBufSpeed       = 1;
 	size_t  m_iBufSize        = 0;
@@ -59,11 +74,7 @@ private:
 class AudioDataCacheConvert : public FFmpegAudioConvert
 {
 public:
-	int Convert(const uint8_t** ppInData, int incount, int64_t inPts, int64_t& outPts);
-	int FlushCachedData(int64_t& outPts);
-
-protected:
-	int64_t m_iPts = -1;
+	int Convert(std::vector<FrameHolderPtr>& frames, int& sampleCountOut);
 };
 
 class RenderOpenAL : public IAudioRender
@@ -79,6 +90,9 @@ public:
 	int GetRenderTime(int64_t&) override;
 	int GetVolume(int&) override;
 	int SetVolume(int) override;
+	int Flush() override;
+	// 返回已提交给OpenAL的数据的，可播放时长，单位毫秒
+	int GetUseableDuration(int32_t&) override;
 
 protected:
 	int AppendOpenALData();
@@ -87,8 +101,13 @@ private:
 	std::unique_ptr<OpenALDevice>          m_pPlayDevice;
 	std::unique_ptr<AudioDataCacheConvert> m_pAudioConvert;
 
-	BufPtr  m_pAudioData;
-	int64_t m_iAudioDataPts = 0;
-	int32_t m_iAudioDataSpeed = 1;
-	bool    m_bAudioDataValid = false;
+	AVSampleFormat m_sampleFormat = AV_SAMPLE_FMT_NONE;
+	int32_t        m_sampleSpeed = 1; //Speed_1X
+	int32_t        m_sampleRate;
+	int32_t        m_sampleChannel;
+	int64_t        m_sampleChannelLayout;
+
+	std::vector<FrameHolderPtr> m_audioFrames;
+	int                         m_audioSampleCount = 0;
+	BufPtr                      m_pAudioData;
 };

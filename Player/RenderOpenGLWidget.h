@@ -74,6 +74,7 @@ protected:
 	const char* GetShaderSoure(int);
 };
 
+class VideoRenderOpenGLWidget;
 class VideoOpenGLWidget : public QOpenGLWidget
 {
 	Q_OBJECT
@@ -81,16 +82,19 @@ public:
 	explicit VideoOpenGLWidget(QWidget* parent);
 	~VideoOpenGLWidget();
 	AVPixelFormat GetSupportedPixformat();
+	void SetRenderDataSource(VideoRenderOpenGLWidget*);
 
 	void SetVideoSize(int, int);
 	void UpdateTexture(int, int, const uint8_t* const*, const int*);
+
 protected:
 	void initializeGL() override;
 	void resizeGL(int, int) override;
 	void paintGL() override;
 
 private:
-	RenderRgb* m_pRender = nullptr;
+	RenderRgb*               m_pRender = nullptr;
+	VideoRenderOpenGLWidget* m_pDataSource = nullptr;
 };
 
 class VideoRenderOpenGLWidget : public IRender
@@ -99,6 +103,7 @@ public:
 	VideoRenderOpenGLWidget(VideoOpenGLWidget* pWidget);
 	~VideoRenderOpenGLWidget();
 
+	int PrepareRender();
 	int ConfigureRender(RenderInfo) override;
 	int UpdataFrame(FrameHolderPtr data) override;
 
@@ -113,8 +118,9 @@ protected:
 
 protected:
 	VideoOpenGLWidget* m_pVideoWidget = nullptr;
+	FrameHolderPtr     m_videoFrameData;
 
-	int m_iWidth = 0;
+	int m_iWidth  = 0;
 	int m_iHeight = 0;
 	AVPixelFormat m_format = AV_PIX_FMT_NONE;
 	std::unique_ptr<FFmpegImageScale> m_pImageConvert;

@@ -1,6 +1,20 @@
 #include "FFmpegDemuxer.h"
 #include <common/Log.h>
 
+void PrintFFmpegError(int code, const char* strPrefix)
+{
+	char buf[64] = { 0 };
+	av_make_error_string(buf, sizeof(buf), code);
+	if (strPrefix)
+	{
+		LOG() << strPrefix << ':' << code << ':' << buf;
+	}
+	else
+	{
+		LOG() << buf;
+	}
+}
+
 static int InterruptCB(void* para)
 {
 	//return 0 不中断， 非0中断阻塞的操作
@@ -12,21 +26,100 @@ static int InterruptCB(void* para)
 	return 0;
 }
 
-void PrintFFmpegError(int code, const char* strPrefix)
+static int CustomRead(void* opaque, uint8_t* buf, int buf_size)
 {
-	char buf[64] = { 0 };
-	av_make_error_string(buf, sizeof(buf), code);
-	if (strPrefix)
+	CustomIOProvider* pProvider = (CustomIOProvider*)opaque;
+	return pProvider->Read(buf, buf_size);
+}
+
+static int CustomWrite(void* opaque, uint8_t* buf, int buf_size)
+{
+	assert(0);
+	return 0;
+}
+
+static int64_t CustomSeek(void* opaque, int64_t offset, int whence)
+{
+	CustomIOProvider* pProvider = (CustomIOProvider*)opaque;
+	return pProvider->Seek(offset, whence);
+}
+
+
+FileProvider::FileProvider(std::string strFileName)
+{
+	m_file.open(strFileName, std::ifstream::binary | std::ifstream::in);
+	if (!m_file.is_open())
 	{
-		LOG() << strPrefix << ": " << buf;
+		LOG() << "can not open file " << strFileName;
 	}
 	else
 	{
-		LOG() << buf;
+		m_file.seekg(0, std::ifstream::end);
+		m_fileSize = m_file.tellg();
+		m_file.seekg(0, std::ifstream::beg);
 	}
 }
 
-FFmpegDemuxer::FFmpegDemuxer(std::string strMediaAddress)
+void FileProvider::Reset()
+{
+	if (m_file.is_open())
+	{
+		m_file.seekg(0);
+	}
+}
+
+int FileProvider::Read(uint8_t* buf, int size)
+{
+	m_file.read((char*)buf, size);
+	auto n = static_cast<int>(m_file.gcount());
+	if (m_file.eof())
+	{
+		m_file.clear();
+	}
+	return n;
+}
+
+int64_t FileProvider::Seek(int64_t offset, int whence)
+{
+	if (!m_file.is_open() || m_file.bad())
+	{
+		return -1;
+	}
+
+	int64_t pos = 0;
+	switch (whence)
+	{
+	case SEEK_SET:
+		m_file.seekg(offset, std::ifstream::beg);
+		break;
+	case SEEK_CUR:
+		pos = (int64_t)m_file.tellg();
+		if (pos + offset >= m_fileSize)
+		{
+			return -1;
+		}
+		m_file.seekg(offset, std::ifstream::cur);
+		break;
+	case SEEK_END:
+		pos = (int64_t)m_file.tellg();
+		if (pos + offset < 0)
+		{
+			return -1;
+		}
+		m_file.seekg(offset, std::ifstream::end);
+		break;
+	case 0x10000:
+		return m_fileSize;
+	default:
+		break;
+	}
+
+	pos = (int64_t)m_file.tellg();
+	return pos;
+}
+
+
+FFmpegDemuxer::FFmpegDemuxer(std::string strMediaAddress, CustomIOProvider* pCustomIOProvider)
 {
 	m_pFormatContext = avformat_alloc_context();
 	m_pFormatContext->interrupt_callback.callback = InterruptCB;
@@ -36,16 +129,31 @@ FFmpegDemuxer::FFmpegDemuxer(std::string strMediaAddress)
 	int n = 0;
 
 	if (av_stristart(strMediaAddress.c_str(), "rtsp", NULL)||
-		av_stristart(strMediaAddress.c_str(), "rtmp", NULL))
+		av_stristart(strMediaAddress.c_str(), "rtmp", NULL)||
+		av_stristart(strMediaAddress.c_str(), "http", NULL))
 	{
 		av_dict_set(&opts, "stimeout", "10000000", 0); // 10s timeout
 		av_dict_set(&opts, "buffer_size", "4096000", 0);
 		av_dict_set(&opts, "rtsp_transport", "tcp", 0);
 
 		// 默认5000000字节，减小这个值会加快流打开速度，但是也会导致兼容性变差，频繁的打开流失败
-		m_pFormatContext->probesize = 1024 * 1024 * 2;
+		m_pFormatContext->probesize = 1024 * 256;
 		// 默认0，ffmpeg内部会根据不同的容器格式选择一个时间，常用的是5秒（5*AV_TIME_BASE）
 		m_pFormatContext->max_analyze_duration = 1 * AV_TIME_BASE; 
+		// AVFMT_FLAG_NOBUFFER同样可以加快流打开的速度，但也会导致一些问题。如音视频同步产生困难？
+		//m_pFormatContext->flags |= AVFMT_FLAG_NOBUFFER;
+	}
+
+	m_pFormatContext->flags |= AVFMT_FLAG_GENPTS;
+	//m_pFormatContext->flags |= AVFMT_FLAG_DISCARD_CORRUPT;
+
+	if (pCustomIOProvider)
+	{
+		const size_t kBufSize = 65536;
+		auto pBuf = (unsigned char*)av_malloc(kBufSize);
+		m_pIOContext = avio_alloc_context(pBuf, kBufSize, 0,
+			pCustomIOProvider, CustomRead, CustomWrite, CustomSeek);
+		m_pFormatContext->pb = m_pIOContext;
 	}
 
 	n = avformat_open_input(&m_pFormatContext, strMediaAddress.c_str(), NULL, &opts);
@@ -163,6 +271,13 @@ FFmpegDemuxer::~FFmpegDemuxer()
 	{
 		av_bsf_free(&m_bsfMp4ToAnnexb);
 	}
+
+	if (m_pIOContext)
+	{
+		av_freep(&m_pIOContext->buffer);
+		av_freep(&m_pIOContext);
+	}
+
 	if (m_pFormatContext)
 	{
 		avformat_close_input(&m_pFormatContext);
@@ -643,8 +758,8 @@ End:
 }
 
 
-FFmpegDecode::FFmpegDecode(std::string s):
-	FFmpegDemuxer(s)
+FFmpegDecode::FFmpegDecode(std::string s, CustomIOProvider* pProvider):
+	FFmpegDemuxer(s, pProvider)
 {
 	m_pAFrame = av_frame_alloc();
 	m_pVFrame = av_frame_alloc();
@@ -692,8 +807,12 @@ int FFmpegDecode::CreateDecoder()
 		avcodec_parameters_to_context(m_pVCodecContext, m_pFormatContext->streams[m_iVideoIndex]->codecpar);
 		m_pVCodecContext->time_base;
 		m_pVCodecContext->framerate;
-		m_pVCodecContext->flags |= AV_CODEC_FLAG_LOW_DELAY;
-		m_pVCodecContext->thread_count = 0;
+		/*
+		* AV_CODEC_FLAG_LOW_DELAY可以降低解码延时，但
+		* 如果avpacket中pts有误，此标志会导致输出的avframe顺序错乱
+		*/
+		//m_pVCodecContext->flags |= AV_CODEC_FLAG_LOW_DELAY;
+		//m_pVCodecContext->thread_count = 0;
 		n = avcodec_open2(m_pVCodecContext, m_pVCodec, NULL);
 		if (n < 0)
 		{
@@ -809,7 +928,10 @@ decode:
 	n = DecodeVideo(packet);
 	if (n == 0)
 	{
-		// todo image data
+		//if(m_pVFrame->pts == AV_NOPTS_VALUE)
+		//	m_pVFrame->pts = av_frame_get_best_effort_timestamp(m_pVFrame);
+
+		//LOG() << m_pVFrame->pts;
 	}
 	else if (n == AVERROR(EAGAIN))
 	{
@@ -873,8 +995,8 @@ int FFmpegDecode::AudioDecodeError()
 }
 
 
-FFmpegHWDecode::FFmpegHWDecode(std::string s):
-	FFmpegDecode(s)
+FFmpegHWDecode::FFmpegHWDecode(std::string s, CustomIOProvider* pProvider):
+	FFmpegDecode(s, pProvider)
 {
 	m_hwVFrame = av_frame_alloc();
 }

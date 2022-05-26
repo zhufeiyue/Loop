@@ -25,4 +25,6 @@ class IAudioRender : public IRender
 public:
 	virtual int GetVolume(int&) = 0;
 	virtual int SetVolume(int) = 0;
+	virtual int Flush() = 0;
+	virtual int GetUseableDuration(int32_t&) = 0;
 };

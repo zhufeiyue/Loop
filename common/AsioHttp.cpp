@@ -6,12 +6,18 @@
 
 using namespace boost;
 
+static void testSyncAsioHttp()
+{
+	Dictionary result;
+	//auto ret = SimpleHttpGet("http://112.74.200.9:88/tv000000/m3u8.php?/migu/625204865", result, 5000);
+	auto ret = SimpleHttpGet("https://newcntv.qcloudcdn.com/asp/hls/main/0303000a/3/default/4f7655094036437c8ec19bf50ba3a8e0/main.m3u8?maxbr=2048", result, 5000);
+	LOG() << result.get<std::string>("message");
+}
+
 void testAsioHttp()
 {
-	Eventloop loop;
-	auto thread = std::thread([&loop]() {
-		loop.Run();
-		});
+	//testSyncAsioHttp();
+	//return;
 
 	auto dataCb = [](std::string_view data, Dictionary info) {
 		LOG() << "got message";
@@ -25,39 +31,80 @@ void testAsioHttp()
 		}
 	};
 	auto errorCb = [](Dictionary info) {
-		 LOG() << info.find("message")->second.to<std::string>();
+		LOG() << info.get<std::string>("message");
 	};
 
 	//auto pClient = std::make_shared<AsioHttpClient>();
-	auto pClient = std::make_shared<AsioHttpFile>();
-	auto pFile = new std::ofstream("d:/1.txt", std::ofstream::binary | std::ofstream::out);
-	pClient->SetProgressCb([pFile](std::string_view data, bool bDone, Dictionary dic) 
-		{
-			if (!pFile->is_open())
-			{
-				return;
-			}
 
-			LOG() << "read " << data.length() << " done " << bDone;
-			pFile->write(data.data(), data.length());
-			if (bDone)
-			{
-				pFile->close();
-			}
-		});
+	auto pClient = std::make_shared<AsioHttpClient1>();
+
+	//auto pClient = std::make_shared<AsioHttpFile>();
+	//auto pFile = new std::ofstream("d:/1.txt", std::ofstream::binary | std::ofstream::out);
+	//pClient->SetProgressCb([pFile](std::string_view data, bool bDone, Dictionary dic)
+	//	{
+	//		if (!pFile->is_open())
+	//		{
+	//			return;
+	//		}
+
+	//		LOG() << "read " << data.length() << " done " << bDone;
+	//		pFile->write(data.data(), data.length());
+	//		if (bDone)
+	//		{
+	//			pFile->close();
+	//		}
+	//	});
 
 	//pClient->Get("https://newcntv.qcloudcdn.com/asp/hls/main/0303000a/3/default/4f7655094036437c8ec19bf50ba3a8e0/main.m3u8?maxbr=2048", dataCb, errorCb);
-	//pClient->Get("https://res06.bignox.com/full/20220301/8cbb8a56e4ae46b0bb069d19ad1a7723.exe?filename=nox_setup_v7.0.2.2_full.exe", dataCb, errorCb);
 	//pClient->Get("http://112.74.200.9:88/tv000000/m3u8.php?/migu/625204865", dataCb, errorCb);
-	pClient->Get("https://cdnhp17.yesky.com/622465e5/6f7b262c103dc7d8d92ea8882d88c911/newsoft/3__5000557__3f7372633d6c6d266c733d6e32393464323930613961__68616f2e3336302e636e__0c6b.exe", dataCb, errorCb);
+	//pClient->Get("https://cdnhp17.yesky.com/625e78ab/4cd89b23a17d8d735c9d7bd74b71dd97/newsoft/IQIYIsetup_tj%40kb002.exe", dataCb, errorCb);
+	//pClient->Get("http://xiazai.qishucn.com/txt/%E4%B9%9D%E6%9E%81%E5%89%91%E7%A5%9E.txt", dataCb, errorCb);
+	pClient->Get("https://cctvcncc.v.wscdns.com/live/cctv15_1/index.m3u8?contentid=2820180516001&b=800-2100", dataCb, errorCb);
+	
 	pClient.reset();
 
-	thread.join();
+	std::this_thread::sleep_for(std::chrono::seconds(600));
+}
+
+class HttpThread
+{
+public:
+	HttpThread()
+	{
+		m_thread = std::thread([this]() 
+			{
+				m_loop.Run();
+			});
+	}
+	~HttpThread()
+	{
+		m_loop.Exit();
+		if (m_thread.joinable())
+		{
+			m_thread.join();
+		}
+	}
+
+	Eventloop& Loop() { return m_loop; }
+private:
+	std::thread m_thread;
+	Eventloop   m_loop;
+};
+
+static Eventloop& HttpLoop()
+{
+	static HttpThread ins;
+	return ins.Loop();
+}
+
+static asio::io_context& HttpIoContext()
+{
+	return HttpLoop().AsioQueue().Context();
 }
 
 AsioHttpClient::AsioHttpClient()
 {
-	m_responBuf.reserve(512 * 1024); // 512kb
+	m_responBuf.reserve(32 * 1024); // 32kb
 }
 
 AsioHttpClient::~AsioHttpClient()
@@ -78,15 +125,16 @@ int AsioHttpClient::Get(std::string url, DataCb dataCb, ErrorCb errorCb)
 		return CodeNo;
 	}
 
-	auto pThis = shared_from_this();
-	auto pResolver = std::make_shared<asio::ip::tcp::resolver>(GetLoop().AsioQueue().Context());
-	if (!pResolver)
+	if (!m_pResolver)
+	{
+		m_pResolver = std::make_unique<asio::ip::tcp::resolver>(HttpIoContext());
+	}
+	if (!m_pResolver)
 	{
 		return CodeOK;
 	}
-
-	pResolver->async_resolve(host, port != 0 ? std::to_string(port) : scheme,
-		[pThis, pResolver](const system::error_code& err, asio::ip::tcp::resolver::results_type res)
+	m_pResolver->async_resolve(host, port != 0 ? std::to_string(port) : scheme,
+		[pThis = shared_from_this()](const system::error_code& err, asio::ip::tcp::resolver::results_type res)
 		{
 			pThis->OnResolver(err, res);
 		});
@@ -104,6 +152,11 @@ int AsioHttpClient::Get(std::string url, DataCb dataCb, ErrorCb errorCb)
 int AsioHttpClient::Abort()
 {
 	system::error_code err;
+
+	if (m_pResolver)
+	{
+		m_pResolver->cancel();
+	}
 
 	if (m_pSocket)
 	{
@@ -174,22 +227,20 @@ void AsioHttpClient::OnResolver(const boost::system::error_code& err, boost::asi
 
 	if (m_strScheme == "http")
 	{
-		m_pSocket.reset(new asio::ip::tcp::socket(GetLoop().AsioQueue().Context()));
+		m_pSocket = std::make_unique<asio::ip::tcp::socket>(HttpIoContext());
 	}
 	else if (m_strScheme == "https")
 	{
-		auto context = asio::ssl::context(asio::ssl::context::tlsv12_client);
+		auto ssl_context = asio::ssl::context(asio::ssl::context::tlsv12_client);
 		system::error_code err;
-		context.set_default_verify_paths(err);
+		ssl_context.set_default_verify_paths(err);
 		if (err)
 		{
 			OnError(err);
 			return;
 		}
 
-		m_pSslSocket.reset(
-			new asio::ssl::stream<boost::asio::ip::tcp::socket>(GetLoop().AsioQueue().Context(), context)
-		);
+		m_pSslSocket = std::make_unique<asio::ssl::stream<asio::ip::tcp::socket>>(HttpIoContext(), ssl_context);
 		m_pSslSocket->set_verify_mode(asio::ssl::verify_none);
 
 		// 如果不调用下面这句，在某些网站上，可能会握手失败
@@ -228,7 +279,7 @@ void AsioHttpClient::OnConnect(const boost::system::error_code& err)
 
 	if (m_pSocket)
 	{
-		DoRequest();
+		DoSend();
 	}
 	else if(m_pSslSocket)
 	{
@@ -241,8 +292,32 @@ void AsioHttpClient::OnConnect(const boost::system::error_code& err)
 				return;
 			}
 
-			pThis->DoRequest();
+			pThis->DoSend();
 		});
+	}
+}
+
+void AsioHttpClient::OnSendComplete(const boost::system::error_code& err, std::size_t n)
+{
+	if (err)
+	{
+		OnError(err);
+		return;
+	}
+
+	auto readHeaderCb = [pThis = shared_from_this(), this](const system::error_code& err, std::size_t header_len)
+	{
+		OnReadHeader(err, header_len);
+	};
+
+	auto buf = asio::dynamic_buffer(m_responBuf);
+	if (m_pSslSocket)
+	{
+		asio::async_read_until(*m_pSslSocket, buf, "\r\n\r\n", std::move(readHeaderCb));
+	}
+	else if (m_pSocket)
+	{
+		asio::async_read_until(*m_pSocket, buf, "\r\n\r\n", std::move(readHeaderCb));
 	}
 }
 
@@ -366,7 +441,7 @@ void AsioHttpClient::OnError(const boost::system::error_code& err)
 	}
 }
 
-void AsioHttpClient::DoRequest()
+void AsioHttpClient::DoSend()
 {
 	std::stringstream ss;
 
@@ -381,29 +456,10 @@ void AsioHttpClient::DoRequest()
 	auto pRequestData = std::make_shared<std::string>(ss.str());
 	auto requestBuf = asio::buffer(pRequestData->data(), pRequestData->length());
 	auto requestLenAtLeast = asio::transfer_at_least(pRequestData->length());
+
 	auto requestCb = [pRequestData, pThis = shared_from_this(), this](const system::error_code& err, std::size_t n)
 	{
-		if (err)
-		{
-			OnError(err);
-			return;
-		}
-
-		// read http respon header
-		auto readHeaderCb = [pThis = shared_from_this(), this](const system::error_code& err, std::size_t header_len)
-		{
-			OnReadHeader(err, header_len);
-		};
-
-		auto buf = asio::dynamic_buffer(m_responBuf);
-		if (m_pSslSocket)
-		{
-			asio::async_read_until(*m_pSslSocket, buf, "\r\n\r\n", std::move(readHeaderCb));
-		}
-		else if (m_pSocket)
-		{
-			asio::async_read_until(*m_pSocket, buf, "\r\n\r\n", std::move(readHeaderCb));
-		}
+		OnSendComplete(err, n);
 	};
 
 	if (m_pSocket)
@@ -529,4 +585,353 @@ void AsioHttpFile::OnReadBody(const boost::system::error_code& err, std::size_t 
 			OnReadBody(err, readedLen);
 		});
 	}
+}
+
+
+struct AsioHttpClient1Private
+{
+	bool bHeaderComplete = false;
+	bool bMessageComplete = false;
+	std::string strStatus;
+	std::string strHeaderKey;
+	std::string strHeaderValue;
+	std::map<std::string, std::string> mapHeader;
+	std::string strBody;
+};
+
+static int OnParserURL(http_parser* pParser, const char* at, size_t len)
+{
+	LOG() << "Asio http " __FUNCTION__;
+	return 0;
+}
+
+static int OnParserStatus(http_parser* pParser, const char* at, size_t len)
+{
+	auto p = static_cast<AsioHttpClient1Private*>(pParser->data);
+	if (!p)
+	{
+		return -1;
+	}
+
+	p->strStatus = std::string(at, len);
+
+	return 0;
+}
+
+static int OnHeaderField(http_parser* pParser, const char* at, size_t len)
+{
+	auto p = static_cast<AsioHttpClient1Private*>(pParser->data);
+	if (!p)
+	{
+		return -1;
+	}
+	p->strHeaderKey = std::string(at, len);
+	boost::to_lower(p->strHeaderKey);
+
+	return 0;
+}
+
+static int OnHeaderValue(http_parser* pParser, const char* at, size_t len)
+{
+	auto p = static_cast<AsioHttpClient1Private*>(pParser->data);
+	if (!p)
+	{
+		return -1;
+	}
+	p->strHeaderValue = std::string(at, len);
+	p->mapHeader.insert(std::make_pair(std::move(p->strHeaderKey), std::move(p->strHeaderValue)));
+
+	return 0;
+}
+
+static int OnHeaderComplete(http_parser* pParser)
+{
+	auto p = static_cast<AsioHttpClient1Private*>(pParser->data);
+	if (!p)
+	{
+		return -1;
+	}
+
+	p->bHeaderComplete = true;
+
+	return 0;
+}
+
+static int OnMessageBegin(http_parser* pParser)
+{
+	return 0;
+}
+
+static int OnMessageComplete(http_parser* pParser)
+{
+	auto p = static_cast<AsioHttpClient1Private*>(pParser->data);
+	if (!p)
+	{
+		return -1;
+	}
+
+	p->bMessageComplete = true;
+
+	return 0;
+}
+
+/*
+body是分段接收的，不一定一次性得到全部内容
+chunk的内容同样走这个回调
+*/
+static int OnBody(http_parser* pParser, const char* at, size_t len)
+{
+	auto p = static_cast<AsioHttpClient1Private*>(pParser->data);
+	if (!p)
+	{
+		return -1;
+	}
+
+	p->strBody.append(std::string(at, len));
+
+	return 0;
+}
+
+static int OnChunkHeader(http_parser* pParser)
+{
+	LOG() << "chunk length " << pParser->content_length;
+	return 0;
+}
+
+static int OnChunkComplete(http_parser* pParser)
+{
+	return 0;
+}
+
+AsioHttpClient1::AsioHttpClient1()
+{
+	http_parser_settings_init(&m_settings);
+	m_settings.on_message_begin = OnMessageBegin;
+	m_settings.on_message_complete = OnMessageComplete;
+	m_settings.on_url = OnParserURL;
+	m_settings.on_status = OnParserStatus;
+	m_settings.on_header_field = OnHeaderField;
+	m_settings.on_header_value = OnHeaderValue;
+	m_settings.on_headers_complete = OnHeaderComplete;
+	m_settings.on_body = OnBody;
+	m_settings.on_chunk_header = OnChunkHeader;
+	m_settings.on_chunk_complete = OnChunkComplete;
+
+	m_pPrivate = new AsioHttpClient1Private;
+	m_parser.data = m_pPrivate;
+	http_parser_init(&m_parser, HTTP_RESPONSE);
+	http_parser_set_max_header_size(2 * 1024);
+}
+
+AsioHttpClient1::~AsioHttpClient1()
+{
+	if (m_pPrivate)
+		delete m_pPrivate;
+}
+
+void AsioHttpClient1::OnSendComplete(const boost::system::error_code& err, std::size_t)
+{
+	if (err)
+	{
+		OnError(err);
+		return;
+	}
+
+	DoRead();
+}
+
+void AsioHttpClient1::DoRead()
+{
+	auto readCb = [pThis = shared_from_this(), this](const system::error_code& err, std::size_t len)
+	{
+		OnReadPart(err, len);
+	};
+
+	auto buf = asio::dynamic_buffer(m_responBuf);
+	if (m_pSslSocket)
+	{
+		asio::async_read(*m_pSslSocket, buf, asio::transfer_at_least(1), std::move(readCb));
+	}
+	else if (m_pSocket)
+	{
+		asio::async_read(*m_pSocket, buf, asio::transfer_at_least(1), std::move(readCb));
+	}
+}
+
+void AsioHttpClient1::OnReadPart(const boost::system::error_code& err, std::size_t len)
+{
+	if (err)
+	{
+		OnError(err);
+		return;
+	}
+
+	size_t ret;
+	ret = http_parser_execute(&m_parser, &m_settings, m_responBuf.c_str(), m_responBuf.length());
+	if (http_errno::HPE_OK != m_parser.http_errno)
+	{
+		LOG() << http_errno_name((http_errno)m_parser.http_errno);
+
+		OnError(system::error_code(AsioHttpClient::parse_response_error,
+			AsioHttpClient::custom_error_category()));
+		return;
+	}
+
+	if (m_pPrivate->bHeaderComplete)
+	{
+		m_strResponCode = std::to_string(m_parser.status_code);
+		m_strResponReason = std::move(m_pPrivate->strStatus);
+		m_strResponVersion = std::to_string(m_parser.http_major) + "/" + std::to_string(m_parser.http_minor);
+		m_mapResponHeaders = std::move(m_pPrivate->mapHeader);
+
+		m_pPrivate->bHeaderComplete = false;
+
+		if (m_parser.status_code == 301 || m_parser.status_code == 302)
+		{
+			auto iter = m_mapResponHeaders.find("location");
+			if (iter != m_mapResponHeaders.end())
+			{
+				auto strUrl = iter->second;
+				LOG() << "redirect to " << strUrl;
+
+				Abort();
+
+				delete m_pPrivate;
+				m_pPrivate = new AsioHttpClient1Private;
+				m_parser.data = m_pPrivate;
+				http_parser_init(&m_parser, HTTP_RESPONSE);
+
+				Get(strUrl, m_cbData, m_cbError);
+				return;
+			}
+		}
+	}
+
+	if (m_pPrivate->bMessageComplete)
+	{
+		if (m_cbData)
+		{
+			Dictionary other_info;
+			other_info.insert("result", std::atoi(m_strResponCode.c_str()));
+			other_info.insert("url", m_strUrl);
+
+			m_cbData(m_pPrivate->strBody, other_info);
+		}
+	}
+	else
+	{
+		if (ret == m_responBuf.length())
+		{
+			m_responBuf = std::string();
+		}
+		else if (ret < m_responBuf.length())
+		{
+			m_responBuf = m_responBuf.substr(ret);
+		}
+		else
+		{
+			OnError(system::error_code(AsioHttpClient::parse_response_error,
+				AsioHttpClient::custom_error_category()));
+			return;
+		}
+
+		DoRead();
+	}
+}
+
+int SimpleHttpGet(std::string url, Dictionary& result, int timeout)
+{
+	auto pHttpClient = std::make_shared<AsioHttpClient1>();
+
+	auto promise = std::make_shared<std::promise<int>>();
+	auto fu =  promise->get_future();
+	auto bValid = std::make_shared<std::atomic_bool>(true);
+
+	auto dataCb = [&result, promise, bValid](std::string_view data_view, Dictionary info) {
+		if (!bValid->load())
+		{
+			return;
+		}
+		bValid->store(false);
+
+		auto data = std::string(data_view);
+		auto trueUrl = info.get<std::string>("url");
+		auto httpCode = info.get<int>("result");
+
+		result.insert("ok", 1);
+		result.insert("message", "ok");
+		result.insert("status", httpCode);
+		result.insert("data", std::move(data));
+		result.insert("url", trueUrl);
+
+		try
+		{
+			promise->set_value(CodeOK);
+		}
+		catch (const std::exception& e)
+		{
+			LOG() << e.what();
+		}
+		catch (...)
+		{
+		}
+	};
+
+	auto errorCb = [&result, promise, bValid](Dictionary info) {
+		if (!bValid->load())
+		{
+			return;
+		}
+		bValid->store(false);
+
+		auto strMessage = info.get<std::string>("message");
+		result.insert("ok", 0);
+		result.insert("message", std::move(strMessage));
+
+		try
+		{
+			promise->set_value(CodeNo);
+		}
+		catch (const std::exception& e)
+		{
+			LOG() << e.what();
+		}
+		catch (...)
+		{
+		}
+	};
+
+	result.clear();
+
+	auto ret =  pHttpClient->Get(url, std::move(dataCb), std::move(errorCb));
+	if (ret != CodeOK)
+	{
+		result.insert("ok", 0);
+		result.insert("message", url);
+		return ret;
+	}
+
+	auto status = fu.wait_for(std::chrono::milliseconds(timeout));
+	if (status == std::future_status::ready)
+	{
+		return fu.get();
+	}
+	else if (status == std::future_status::timeout)
+	{
+		*bValid = false;
+		result.insert("ok", 0);
+		result.insert("message", "time out");
+
+		HttpLoop().AsioQueue().PushEvent([pHttpClient]() 
+			{
+				pHttpClient->Abort();
+				return 0;
+			});
+	}
+	else if (status == std::future_status::deferred)
+	{
+		// never here
+	}
+
+	return CodeNo;
 }
