@@ -46,31 +46,11 @@ class EventWorker: public QObject
 	}
 };
 
-QLoop::QLoop(QObject* parent):
+QLoop::QLoop(QThread* pThread, QObject* parent):
 	QThread(parent)
-{
-}
-
-QLoop::~QLoop()
-{
-}
-
-void QLoop::run()
-{
-	m_worker = new EventWorker();
-	m_promise.set_value(0);
-
-	exec();
-
-	delete m_worker;
-	m_worker = nullptr;
-}
-
-int QLoop::Run(QThread* pThread)
 {
 	if (m_worker)
 	{
-		return -1;
 	}
 
 	if (pThread)
@@ -81,18 +61,18 @@ int QLoop::Run(QThread* pThread)
 	else
 	{
 		if (isRunning())
-			return 0;
+		{
+			return;
+		}
 
-		start(QThread::TimeCriticalPriority);
+		start(QThread::HighestPriority);
 
 		auto fu = m_promise.get_future();
 		fu.wait();
 	}
-
-	return 0;
 }
 
-int QLoop::Exit()
+QLoop::~QLoop()
 {
 	if (isRunning())
 	{
@@ -110,8 +90,17 @@ int QLoop::Exit()
 			m_worker = nullptr;
 		}
 	}
+}
 
-	return 0;
+void QLoop::run()
+{
+	m_worker = new EventWorker();
+	m_promise.set_value(0);
+
+	exec();
+
+	delete m_worker;
+	m_worker = nullptr;
 }
 
 int QLoop::PushEvent(EventFn&& fn)

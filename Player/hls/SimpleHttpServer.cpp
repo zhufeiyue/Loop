@@ -376,6 +376,7 @@ int SimpleHttpServer::Start(uint16_t port)
 
 	if (!m_pServer->listen(QHostAddress::AnyIPv4, port))
 	{
+		qDebug() << m_pServer->errorString();
 		delete m_pServer;
 		m_pServer = nullptr;
 

@@ -2,7 +2,7 @@
 
 #include <sstream>
 #include <vector>
-#include <common/Dic.h>
+#include "Dic.h"
 
 //https://datatracker.ietf.org/doc/html/rfc8216
 class M3U8Parser
@@ -17,11 +17,11 @@ public:
 	int64_t     GetTargetDuration() const;
 	std::string GetType() const;
 
-	int GetVariantInfo(std::vector<Dictionary>&);
-	int GetSegmentInfo(std::vector<Dictionary>&);
+	int GetVariantInfo(std::vector<Dic>&);
+	int GetSegmentInfo(std::vector<Dic>&);
 
 protected:
 	std::vector<std::string> m_vecLines;
 };
 
-int ParseM3U8(std::string, Dictionary&, std::vector<Dictionary>&);
+int ParseM3U8(std::string, Dic&, std::vector<Dic>&);

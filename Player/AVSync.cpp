@@ -258,7 +258,7 @@ again:
 			if (videoPts < audioPts - m_iUpdateInterval*3)
 			{
 				LOG() << "too late";
-				if (againCount < 5)
+				if (againCount < 1)
 				{
 					againCount += 1;
 					lateFrame = std::move(videoFrame);
@@ -285,7 +285,7 @@ again:
 			}
 			else
 			{
-				m_iSyncInterval = 800;
+				m_iSyncInterval = 500;
 			}
 		}
 

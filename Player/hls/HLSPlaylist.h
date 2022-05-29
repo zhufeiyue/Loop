@@ -3,13 +3,12 @@
 #include <algorithm>
 #include <vector>
 #include <mutex>
-#include <common/Dic.h>
-#include <common/log.h>
+#include "Dic.h"
 
 class HlsSegment
 {
 public:
-	HlsSegment(Dictionary&);
+	HlsSegment(Dic&);
 	int64_t GetNo() const { return no; }
 	double  GetDuration() const { return duration; }
 	std::string GetURL() const { return strAddress; }
@@ -35,7 +34,7 @@ public:
 		Unknown
 	};
 
-	HlsVariant(Dictionary&);
+	HlsVariant(Dic&);
 	~HlsVariant();
 	Type GetType();
 	int Clear();
@@ -67,7 +66,7 @@ class HlsPlaylist
 public:
 	int InitPlaylist(std::string);
 	int GetCurrentVariant(std::shared_ptr<HlsVariant>& pVariant);
-	int SwitchVariant(Dictionary);
+	int SwitchVariant(Dic);
 
 protected:
 	int InitDefaultVariant();
@@ -76,5 +75,3 @@ private:
 	std::vector<std::shared_ptr<HlsVariant>> m_variants;
 	std::shared_ptr<HlsVariant>              m_pCurrentVariant;
 };
-
-void testHls();

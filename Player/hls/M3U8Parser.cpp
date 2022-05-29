@@ -1,6 +1,7 @@
 #include "M3U8Parser.h"
-#include <common/log.h>
-#include <common/ParseUrl.h>
+#include "SimpleHttpClient.h"
+
+#include <QUrl>
 
 #ifndef _MSC_VER
 #define stricmp strcasecmp
@@ -76,27 +77,44 @@ static bool is_absolute_uri(const std::string& uri)
 	return false;
 }
 
-static int FormatSubAddress(std::vector<Dictionary>& sub_items, std::string m3u8_url)
+static bool ParseUrl(const std::string& strUrl,
+	std::string& scheme,
+	std::string& host,
+	std::string& path,
+	int& port)
+{
+	QUrl url(QString::fromStdString(strUrl));
+	if (!url.isValid())
+	{
+		return false;
+	}
+	
+	scheme = url.scheme().toStdString();
+	host = url.host().toStdString();
+	path = url.path().toStdString();
+	port = url.port();
+
+	return true;
+}
+
+static int FormatSubAddress(std::vector<Dic>& sub_items, const std::string& m3u8_url)
 {
 	std::string host;
 	std::string scheme;
 	std::string path;
 	int port(0);
 
-	auto last = std::chrono::steady_clock::now();
 	if (!ParseUrl(m3u8_url, scheme, host, path, port))
 	{
-		LOG() << __FUNCTION__ << " parse url error: " << m3u8_url;
-		return CodeNo;
+		qDebug() << __FUNCTION__ << " parse url error: " << m3u8_url.c_str();
+		return -1;
 	}
-	auto now = std::chrono::steady_clock::now();
-	LOG() << "ParseUrl use " << std::chrono::duration_cast<std::chrono::milliseconds>(now - last).count() << "ms";
 
 	auto paths = split_string(path, '/');
 	if (paths.empty())
 	{
-		LOG() << __FUNCTION__;
-		return CodeNo;
+		qDebug() << __FUNCTION__;
+		return -1;
 	}
 
 	//下面这个循环，计算子地址
@@ -119,10 +137,10 @@ static int FormatSubAddress(std::vector<Dictionary>& sub_items, std::string m3u8
 			sub_uri = join_string(temp, '/');
 		}
 
-		sub_url = scheme + "://" + host + (port != 0 ? ":" + std::to_string(port) : "") + sub_uri;
-		iter->find("address")->second = Dictionary::DictionaryHelper(sub_url);
+		sub_url = scheme + "://" + host + (port > 0 ? ":" + std::to_string(port) : "") + sub_uri;
+		iter->find("address")->second = Dic::DicHelper(sub_url);
 	}
-	return CodeOK;
+	return 0;
 }
 
 M3U8Parser::M3U8Parser(const std::string& strData)
@@ -218,11 +236,11 @@ int64_t M3U8Parser::GetTargetDuration() const
 	return 0;
 }
 
-int M3U8Parser::GetVariantInfo(std::vector<Dictionary>& items)
+int M3U8Parser::GetVariantInfo(std::vector<Dic>& items)
 {
 	items.clear();
 
-	Dictionary dic;
+	Dic dic;
 	size_t pos;
 
 	for (size_t i = 0; i < m_vecLines.size(); ++i)
@@ -257,11 +275,11 @@ int M3U8Parser::GetVariantInfo(std::vector<Dictionary>& items)
 	return 0;
 }
 
-int M3U8Parser::GetSegmentInfo(std::vector<Dictionary>& items)
+int M3U8Parser::GetSegmentInfo(std::vector<Dic>& items)
 {
 	items.clear();
 
-	Dictionary dic;
+	Dic dic;
 	size_t pos;
 	auto segNo = GetSequenceNumber();
 	for (size_t i = 0; i < m_vecLines.size(); ++i)
@@ -291,41 +309,40 @@ int M3U8Parser::GetSegmentInfo(std::vector<Dictionary>& items)
 	return 0;
 }
 
-#include <common/AsioHttp.h>
-int ParseM3U8(std::string strPlaylistUrl, Dictionary& info, std::vector<Dictionary>& items)
+int ParseM3U8(std::string strPlaylistUrl, Dic& info, std::vector<Dic>& items)
 {
-	Dictionary responData;
+	Dic responData;
 
-	LOG() << "parse m3u8 " << strPlaylistUrl;
-	SimpleHttpGet(strPlaylistUrl, responData, 5000);
+	qDebug() << "parse m3u8 " << strPlaylistUrl.c_str();
+	SimpleGet(QString::fromStdString(strPlaylistUrl), responData, 5000);
 
-	auto ok = responData.get<int>("ok");
-	if (!ok)
+	auto code = responData.get<int>("code");
+	if (code != 0)
 	{
 		std::string strMessage = responData.get<std::string>("message");
-		LOG() << strMessage;
-		return CodeNo;
+		qDebug() << strMessage.c_str();
+		return -1;
 	}
 
-	auto httpStatusCode = responData.get<int>("status");
-	auto trueUrl = responData.get<std::string>("url");
+	auto httpStatusCode = responData.get<int>("httpCode");
+	auto trueUrl = responData.get<std::string>("httpUrl");
 	if (httpStatusCode != 200)
 	{
-		LOG() << httpStatusCode;
-		return CodeNo;
+		qDebug() << httpStatusCode;
+		return -1;
 	}
 
-	auto iterData = responData.find("data");
+	auto iterData = responData.find("httpData");
 	if (iterData == responData.end())
 	{
-		return CodeNo;
+		return -1;
 	}
-	auto& data = iterData->second.toRef<std::string>();
+	auto& data = iterData->second.to<QByteArray>().toStdString();
 	auto pParser = std::make_unique<M3U8Parser>(data);
 	if (!pParser->IsValid())
 	{
-		LOG() << "invalid m3u8";
-		return CodeNo;
+		qDebug() << "invalid m3u8";
+		return -1;
 	}
 
 	if (pParser->IsMaster())
@@ -341,11 +358,11 @@ int ParseM3U8(std::string strPlaylistUrl, Dictionary& info, std::vector<Dictiona
 		pParser->GetSegmentInfo(items);
 	}
 
-	if (CodeOK != FormatSubAddress(items, trueUrl))
+	if (0 != FormatSubAddress(items, trueUrl))
 	{
-		LOG() << "FormatSubAddress error";
-		return CodeNo;
+		qDebug() << "FormatSubAddress error";
+		return -1;
 	}
 
-	return CodeOK;
+	return 0;
 }

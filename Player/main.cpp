@@ -23,7 +23,6 @@
 #include "hls/HLSPlaylist.h"
 #include "hls/HLSProxy.h"
 #include "qloop.h"
-#include "SimpleHttpServer.h"
 
 #ifdef _MSC_VER
 #include <dwmapi.h>
@@ -257,7 +256,6 @@ int testQmlPlayer(int argc, char* argv[])
 
 	QLoop q(nullptr);
 	//q.Run(app.thread());
-	q.Run(nullptr);
 
 	QuickVideoRenderObject::Register();
 
@@ -286,8 +284,9 @@ int testQmlPlayer(int argc, char* argv[])
 		pFile = "D:/Ñ¸À×ÏÂÔØ/Halo.S01E01.1080p.WEB.h264-KOGi[eztv.re].mkv";
 		pFile = "D:/Ñ¸À×ÏÂÔØ/WeChat_20220328223801.mp4";
 		pFile = "D:/Ñ¸À×ÏÂÔØ/1/Ñô¹âµçÓ°www.ygdy8.com.007£ºÎÞÏ¾¸°ËÀ.2021.BD.1080P.¹úÓ¢Ë«ÓïË«×Ö.mkv";
-		pFile = "http://112.74.200.9:88/tv000000/m3u8.php?/migu/625204865";
 		pFile = "http://112.74.200.9:88/tv000000/m3u8.php?/migu/627198191";
+		pFile = "http://112.74.200.9:88/tv000000/m3u8.php?/migu/625204865";
+		pFile = "http://127.0.0.1:8000/1.m3u8";
 	}
 
 	Player* player = nullptr;
@@ -313,12 +312,11 @@ int testQmlPlayer(int argc, char* argv[])
 			return 0;
 		});
 	std::this_thread::sleep_for(std::chrono::milliseconds(20));
-	q.Exit();
 
 	return result;
 }
 
-void testAsioHttp();
+void testHttpClient(int arc, char* argv[]);
 
 int main(int argc, char* argv[])
 {
@@ -328,10 +326,8 @@ int main(int argc, char* argv[])
 	ChooseOpenGL();
 	//testBasePlayer(argc, argv);
 	testQmlPlayer(argc, argv);
-	//testHls();
-	//testAsioHttp();
-	//testHttpServer(argc, argv);
 	//testHlsProxy(argc, argv);
+	//testHttpClient(argc, argv);
 
 	return 0;
 }

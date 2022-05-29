@@ -1,6 +1,8 @@
 #include "HLSPlaylist.h"
 #include "M3U8Parser.h"
 
+#include <QDebug>
+
 static HlsVariant::Type String2HlsVariantType(const std::string& strType)
 {
 	auto type = HlsVariant::Type::Unknown;
@@ -28,7 +30,7 @@ static std::string HlsVariantType2String(HlsVariant::Type type)
 	return "unknown";
 }
 
-HlsSegment::HlsSegment(Dictionary& dic)
+HlsSegment::HlsSegment(Dic& dic)
 {
 	this->no = dic.get<int64_t>("no");
 	this->strAddress = dic.get<std::string>("address");
@@ -37,11 +39,11 @@ HlsSegment::HlsSegment(Dictionary& dic)
 
 int HlsSegment::Prepare()
 {
-	return CodeOK;
+	return 0;
 }
 
 
-HlsVariant::HlsVariant(Dictionary& dic)
+HlsVariant::HlsVariant(Dic& dic)
 {
 	m_variantType = String2HlsVariantType(dic.get<std::string>("type"));
 	m_targetDuration = dic.get<int64_t>("targetDuration");
@@ -64,7 +66,7 @@ int HlsVariant::Append(std::vector<std::shared_ptr<HlsSegment>>& segs)
 {
 	if (segs.empty())
 	{
-		return CodeNo;
+		return -1;
 	}
 
 	// 认为segs是有序的，以no排序
@@ -73,7 +75,7 @@ int HlsVariant::Append(std::vector<std::shared_ptr<HlsSegment>>& segs)
 	{
 		m_segs = std::move(segs);
 		m_iCurrentSegIndex = 0;
-		return CodeOK;
+		return 0;
 	}
 
 	auto oldSegNo = m_segs.back()->GetNo();
@@ -95,7 +97,7 @@ int HlsVariant::Append(std::vector<std::shared_ptr<HlsSegment>>& segs)
 	}
 	else
 	{
-		LOG() << "seg no mismatch!!!";
+		qDebug() << "seg no mismatch!!!";
 		auto firstNewSegNo = segs.front()->GetNo();
 		auto lastNewSegNo = segs.back()->GetNo();
 		if (firstNewSegNo > oldSegNo)
@@ -107,40 +109,33 @@ int HlsVariant::Append(std::vector<std::shared_ptr<HlsSegment>>& segs)
 		}
 		else if (lastNewSegNo < oldSegNo)
 		{
-			return CodeNo;
+			return -1;
 		}
 		else
 		{
-			return CodeNo;
+			return -1;
 		}
 	}
 
 
-	return CodeOK;
+	return 0;
 }
 
 int HlsVariant::Clear()
 {
 	m_segs.clear();
 	m_iCurrentSegIndex = 0;
-	return CodeOK;
+	return 0;
 }
 
 int HlsVariant::Update()
 {
-	Dictionary info;
-	std::vector<Dictionary> items;
+	Dic info;
+	std::vector<Dic> items;
 	int ret;
 
-#ifdef _DEBUG
-	auto last = std::chrono::steady_clock::now();
 	ret = ParseM3U8(m_strAddress, info, items);
-	auto now = std::chrono::steady_clock::now();
-	LOG() << "ParseM3U8 use " << std::chrono::duration_cast<std::chrono::milliseconds>(now - last).count() << "ms";
-#else
-	ret = ParseM3U8(m_strAddress, info, items);
-#endif
-	if (ret != CodeOK)
+	if (ret != 0)
 	{
 		return ret;
 	}
@@ -148,8 +143,8 @@ int HlsVariant::Update()
 	auto isMaster = info.get<int>("master");
 	if (isMaster)
 	{
-		LOG() << "shouldn't be master m3u8";
-		return CodeNo;
+		qDebug() << "shouldn't be master m3u8";
+		return -1;
 	}
 
 	auto targetDuration = info.get<int64_t>("targetDuration");
@@ -167,22 +162,22 @@ int HlsVariant::Update()
 	}
 	Append(segs);
 
-	return CodeOK;
+	return 0;
 }
 
 int HlsVariant::Seek(int)
 {
-	return CodeOK;
+	return 0;
 }
 
 int HlsVariant::InitPlay()
 {
-	int ret = CodeNo;
+	int ret = -1;
 
 	if (GetType() == Type::Unknown || m_segs.empty())
 	{
 		ret = Update();
-		if (ret != CodeOK)
+		if (ret != 0)
 		{
 			return ret;
 		}
@@ -191,10 +186,10 @@ int HlsVariant::InitPlay()
 	auto type = GetType();
 	if (type == Type::Unknown || m_segs.empty())
 	{
-		LOG() << "cann't init play for this variant. type: "
-			<< HlsVariantType2String(type)
+		qDebug() << "cann't init play for this variant. type: "
+			<< HlsVariantType2String(type).c_str()
 			<< "; segment number: " << m_segs.size();
-		return CodeNo;
+		return -1;
 	}
 
 	if (type == Type::Vod)
@@ -212,13 +207,13 @@ int HlsVariant::InitPlay()
 	}
 	else
 	{
-		LOG() << "fatal error " __FUNCTION__;
-		return CodeNo;
+		qDebug() << "fatal error " __FUNCTION__;
+		return -1;
 	}
 
 	m_segs[m_iCurrentSegIndex]->Prepare();
 
-	return CodeOK;
+	return 0;
 }
 
 int HlsVariant::GetCurrentSegment(std::shared_ptr<HlsSegment>& pSeg)
@@ -227,28 +222,28 @@ int HlsVariant::GetCurrentSegment(std::shared_ptr<HlsSegment>& pSeg)
 	{
 		auto now = std::chrono::steady_clock::now();
 		auto interval = now - m_timePointLastAccess;
-		LOG() << "m3u8 request interval " << std::chrono::duration_cast<std::chrono::milliseconds>(interval).count();
+		qDebug() << "m3u8 request interval " << std::chrono::duration_cast<std::chrono::milliseconds>(interval).count();
 		m_timePointLastAccess = now;
 		if (interval > std::chrono::seconds(60))
 		{
 			Clear();
-			if (CodeOK != Update())
+			if (0 != Update())
 			{
-				LOG() << "update error";
-				return CodeNo;
+				qDebug() << "update error";
+				return -1;
 			}
 		}
 	}
 
 	if (m_iCurrentSegIndex < 0 || m_iCurrentSegIndex >= (int64_t)m_segs.size())
 	{
-		return CodeNo;
+		return -1;
 	}
 
 	pSeg = m_segs[m_iCurrentSegIndex];
 	m_iCurrentSegIndex += 1;
 
-	return CodeOK;
+	return 0;
 }
 
 int64_t HlsVariant::GetTargetDuration() const
@@ -266,7 +261,7 @@ int HlsVariant::Prepare()
 		}
 	}
 
-	return CodeOK;
+	return 0;
 }
 
 
@@ -274,26 +269,26 @@ int HlsPlaylist::GetCurrentVariant(std::shared_ptr<HlsVariant>& pVariant)
 {
 	if (!m_pCurrentVariant)
 	{
-		return CodeNo;
+		return -1;
 	}
 
 	pVariant = m_pCurrentVariant;
 
-	return CodeOK;
+	return 0;
 }
 
-int HlsPlaylist::SwitchVariant(Dictionary)
+int HlsPlaylist::SwitchVariant(Dic)
 {
 	return 0;
 }
 
 int HlsPlaylist::InitPlaylist(std::string strPlaylistUrl)
 {
-	Dictionary info;
-	std::vector<Dictionary> items;
+	Dic info;
+	std::vector<Dic> items;
 
 	auto ret = ParseM3U8(strPlaylistUrl, info, items);
-	if (ret != CodeOK)
+	if (ret != 0)
 	{
 		return ret;
 	}
@@ -327,8 +322,8 @@ int HlsPlaylist::InitDefaultVariant()
 {
 	if (m_variants.empty())
 	{
-		LOG() << "no variant";
-		return CodeNo;
+		qDebug() << "no variant";
+		return -1;
 	}
 
 	// todo 下面直接使用第一个variant作为默认

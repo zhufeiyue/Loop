@@ -24,7 +24,7 @@ void testHlsProxy(int argc, char* argv[])
 		"http://dys1.v.myalicdn.com/lhls/lhls_c20_2-llhls.m3u8?aliyunols=on",
 
 		strProxyAddress);
-	LOG() << strProxyAddress.c_str();
+	qDebug() << strProxyAddress.c_str();
 
 	//auto pManager = new HlsProxyManager();
 	//pManager->Start();
@@ -106,6 +106,7 @@ static int SendDuplicate(HttpConnection& conn)
 	return 0;
 }
 
+
 HlsProxy::HlsProxy()
 {
 }
@@ -149,7 +150,7 @@ int HlsProxy::StartProxy(std::string strOriginAddress, std::string& strProxyAddr
 			auto ret = GetContent(strContent);
 			if (ret != 0)
 			{
-				LOG() << "GetContent error " << ret;
+				qDebug() << "GetContent error " << ret;
 				conn.Send("500", 500);
 				return 0;
 			}
@@ -189,7 +190,7 @@ int HlsProxy::GetContent(std::string& strContent)
 	std::lock_guard<std::mutex> guard(m_lock);
 	if (!m_pOriginPlaylist)
 	{
-		LOG() << "m_pOriginPlaylist is null";
+		qDebug() << "m_pOriginPlaylist is null";
 		return -1;
 	}
 
@@ -201,14 +202,14 @@ int HlsProxy::GetContent(std::string& strContent)
 	m_pOriginPlaylist->GetCurrentVariant(pVariant);
 	if (!pVariant)
 	{
-		LOG() << "current variant is null";
+		qDebug() << "current variant is null";
 		return -1;
 	}
 
 	pVariant->GetCurrentSegment(pSeg);
 	if (!pSeg)
 	{
-		LOG() << "current segment is null";
+		qDebug() << "current segment is null";
 		if (!m_strLastResponCntent.empty())
 		{
 			strContent = m_strLastResponCntent;
@@ -221,7 +222,7 @@ int HlsProxy::GetContent(std::string& strContent)
 	}
 
 	duration = pSeg->GetDuration();
-	LOG() << "respon seg no: " << pSeg->GetNo()
+	qDebug() << "respon seg no: " << pSeg->GetNo()
 		<< " duration: " << duration
 		<< " target duration: " << pVariant->GetTargetDuration();
 

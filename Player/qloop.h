@@ -5,11 +5,9 @@
 class QLoop : public QThread
 {
 public:
-	QLoop(QObject*);
+	QLoop(QThread* pThread = nullptr, QObject* parent=nullptr);
 	~QLoop();
 
-	int Run(QThread* pThread = nullptr);
-	int Exit();
 	int PushEvent(std::function<int()>&&);
 
 private:

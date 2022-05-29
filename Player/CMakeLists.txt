@@ -40,7 +40,6 @@ aux_source_directory(./hls  PlayerSource)
 set(PlayerQtSource RenderGraphicsView.cpp RenderGraphicsView.h )
 list(APPEND PlayerQtSource RenderOpenGLWidget.h RenderOpenGLWidget.cpp)
 list(APPEND PlayerQtSource RenderQuick.h RenderQuick.cpp)
-list(APPEND PlayerQtSource SimpleHttpServer.h SimpleHttpServer.cpp)
 list(APPEND PlayerQtSource qml/QuickVideoRender.h qml/QuickVideoRender.cpp)
 list(APPEND PlayerQtSource app.qrc)
 

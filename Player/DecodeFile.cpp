@@ -83,7 +83,7 @@ int DecodeFile::InitDecoder(std::string strMediaPath, IDecoder::Callback initCal
 
 			if (m_pDecoder->ContainVideo())
 			{
-				m_iMaxCacheVideoFrameCount = 6;
+				m_iMaxCacheVideoFrameCount = 10;
 				auto videoTimebase = m_pDecoder->GetVideoTimebase(0);
 
 				mediaInfo.insert("hasVideo", true);
