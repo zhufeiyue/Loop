@@ -7,27 +7,35 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMap>
+#include <QSharedMemory>
 
 void testHlsProxy(int argc, char* argv[])
 {
 	QApplication app(argc, argv);
 
-	auto pHlsProxy = new HlsProxy();
-	std::string strProxyAddress;
-	pHlsProxy->StartProxy(
-		//"https://newcntv.qcloudcdn.com/asp/hls/main/0303000a/3/default/4f7655094036437c8ec19bf50ba3a8e0/main.m3u8?maxbr=2048", 
-		//https://hls.cntv.myhwcdn.cn/asp/hls/main/0303000a/3/default/575aa972b9cd41a0969a91f19c0eb436/main.m3u8?maxbr=2048,
-		//"https://dhls.cntv.qcloudcdn.com/asp/enc/hls/main/0303000a/3/default/8dbb6f5e94af47b2a41fd07341e03bad/main.m3u8?maxbr=2048&contentid=18120319242338",
-		//"https://cctvcncc.v.wscdns.com/live/cctv15_1/index.m3u8?contentid=2820180516001&b=800-2100",
-		//"http://112.74.200.9:88/tv000000/m3u8.php?/migu/625204865",
-		//"http://112.74.200.9:88/tv000000/m3u8.php?/migu/627198191",
-		"http://dys1.v.myalicdn.com/lhls/lhls_c20_2-llhls.m3u8?aliyunols=on",
+	if (false)
+	{
+		auto pHlsProxy = new HlsProxy();
+		std::string strProxyAddress;
+		double duration = 0;
+		pHlsProxy->StartProxy(
+			//"https://newcntv.qcloudcdn.com/asp/hls/main/0303000a/3/default/4f7655094036437c8ec19bf50ba3a8e0/main.m3u8?maxbr=2048", 
+			//https://hls.cntv.myhwcdn.cn/asp/hls/main/0303000a/3/default/575aa972b9cd41a0969a91f19c0eb436/main.m3u8?maxbr=2048,
+			//"https://dhls.cntv.qcloudcdn.com/asp/enc/hls/main/0303000a/3/default/8dbb6f5e94af47b2a41fd07341e03bad/main.m3u8?maxbr=2048&contentid=18120319242338",
+			//"https://cctvcncc.v.wscdns.com/live/cctv15_1/index.m3u8?contentid=2820180516001&b=800-2100",
+			//"http://112.74.200.9:88/tv000000/m3u8.php?/migu/625204865",
+			//"http://dys1.v.myalicdn.com/lhls/lhls_c20_2-llhls.m3u8?aliyunols=on",
+			"http://112.74.200.9:88/tv000000/m3u8.php?/migu/627198191",
 
-		strProxyAddress);
-	qDebug() << strProxyAddress.c_str();
+			strProxyAddress, duration);
+		qDebug() << strProxyAddress.c_str();
+	}
 
-	//auto pManager = new HlsProxyManager();
-	//pManager->Start();
+	if (true)
+	{
+		auto pManager = new HlsProxyManager();
+		pManager->Start();
+	}
 
 	app.exec();
 }
@@ -86,24 +94,52 @@ static int SendJson(HttpConnection& conn, QJsonObject jsonRespon)
 	return 0;
 }
 
-static int SendInvalidParameter(HttpConnection& conn)
+enum HlsProxyCode
 {
+	OK  = 0,
+	InvalidParam,
+	Duplicate,
+	StartProxyError,
+	SeekError,
+	SwitchError
+};
+
+static int SendInvalidParameter(HttpConnection& conn){
 	QJsonObject obj;
-	obj["code"] = 1;
+	obj["code"] = HlsProxyCode::InvalidParam;
 	obj["message"] = "invalid parameter";
 	SendJson(conn, obj);
-
 	return 0;
 }
 
-static int SendDuplicate(HttpConnection& conn)
-{
+static int SendDuplicate(HttpConnection& conn){
 	QJsonObject obj;
-	obj["code"] = 2;
+	obj["code"] = HlsProxyCode::Duplicate;
 	obj["message"] = "duplicate";
 	SendJson(conn, obj);
-
 	return 0;
+}
+
+static QMap<QString, QString> ParseQuery(const std::string& strQuery)
+{
+	QMap<QString, QString> mapQuery;
+	QStringList queryList = QString::fromStdString(strQuery).split('&');
+
+	for (int i = 0; i < queryList.length(); ++i)
+	{
+		QString part = QByteArray::fromPercentEncoding(queryList.at(i).toUtf8());
+
+		auto pos = part.indexOf('=');
+		if (pos == -1)
+			continue;
+		QString k(part.mid(0, pos)), v(part.mid(pos + 1));
+
+		mapQuery[k] = v;
+
+		qDebug() << k << " : " << v;
+	}
+
+	return mapQuery;
 }
 
 
@@ -115,7 +151,7 @@ HlsProxy::~HlsProxy()
 {
 }
 
-int HlsProxy::StartProxy(std::string strOriginAddress, std::string& strProxyAddress)
+int HlsProxy::StartProxy(std::string strOriginAddress, std::string& strProxyAddress, double& duration)
 {
 	int ret = -1;
 	std::shared_ptr<SimpleHttpServer> pServer;
@@ -125,7 +161,6 @@ int HlsProxy::StartProxy(std::string strOriginAddress, std::string& strProxyAddr
 		return ret;
 	}
 
-	std::lock_guard<std::mutex> guard(m_lock);
 	if (m_pOriginPlaylist)
 	{
 		return -1;
@@ -139,15 +174,50 @@ int HlsProxy::StartProxy(std::string strOriginAddress, std::string& strProxyAddr
 		return ret;
 	}
 
+	duration = 0;
+	std::shared_ptr<HlsVariant> pCurVariant;
+	if ( 0 == m_pOriginPlaylist->GetCurrentVariant(pCurVariant))
+	{
+		duration = pCurVariant->GetDuration();
+	}
+
 	m_iProxySegNo = 0;
-	//m_strProxyName = "/" + std::to_string(CreateRandomNumber()) + ".m3u8";
-	m_strProxyName = "/1.m3u8";
+	m_strProxyName = "/" + std::to_string(CreateRandomNumber()) + ".m3u8";
+	//m_strProxyName = "/1.m3u8";
 
 	strProxyAddress = "http://127.0.0.1:" + std::to_string(pServer->Port()) + m_strProxyName;
 	pServer->RegisterRouter(m_strProxyName, [this](HttpConnection& conn) 
 		{
+			int ret = -1;
+			QJsonObject obj;
+			QMap<QString, QString> mapQuery = ParseQuery(conn.GetQuery());
+
+			if (mapQuery["action"] == "seek")
+			{
+				uint64_t pos = mapQuery["pos"].toULongLong();
+				double newStartPos = 0;
+				ret = Seek(pos, newStartPos);
+				if (ret != 0)
+				{
+					qDebug() << "seek error " << ret;
+					obj["code"] = HlsProxyCode::SeekError;
+				}
+				else
+				{
+					obj["code"] = HlsProxyCode::OK;
+					obj["newStartPos"] = newStartPos;
+				}
+
+				SendJson(conn, obj);
+				return 0;
+			}
+			else if (mapQuery["action"] == "switch")
+			{
+				return 0;
+			}
+
 			std::string strContent;
-			auto ret = GetContent(strContent);
+			ret = GetContent(strContent);
 			if (ret != 0)
 			{
 				qDebug() << "GetContent error " << ret;
@@ -173,7 +243,6 @@ int HlsProxy::StopProxy()
 		return ret;
 	}
 
-	std::lock_guard<std::mutex> guard(m_lock);
 	if (m_pOriginPlaylist)
 	{
 		m_pOriginPlaylist.reset();
@@ -187,7 +256,6 @@ int HlsProxy::StopProxy()
 
 int HlsProxy::GetContent(std::string& strContent)
 {
-	std::lock_guard<std::mutex> guard(m_lock);
 	if (!m_pOriginPlaylist)
 	{
 		qDebug() << "m_pOriginPlaylist is null";
@@ -195,7 +263,8 @@ int HlsProxy::GetContent(std::string& strContent)
 	}
 
 	std::stringstream ss;
-	double duration;
+	double duration = 0;
+	bool   isEndSeg = false;
 	std::shared_ptr<HlsSegment> pSeg;
 	std::shared_ptr<HlsVariant> pVariant;
 
@@ -206,7 +275,7 @@ int HlsProxy::GetContent(std::string& strContent)
 		return -1;
 	}
 
-	pVariant->GetCurrentSegment(pSeg);
+	pVariant->GetCurrentSegment(pSeg, isEndSeg);
 	if (!pSeg)
 	{
 		qDebug() << "current segment is null";
@@ -239,6 +308,10 @@ int HlsProxy::GetContent(std::string& strContent)
 	ss << "#EXT-X-PLAYLIST-TYPE:LIVE\n";
 	ss << "#EXTINF:" << duration << ",\n";
 	ss << pSeg->GetURL() << "\n";
+	if (isEndSeg)
+	{
+		ss << "#EXT-X-ENDLIST\n";
+	}
 
 	m_iProxySegNo += 1;
 	strContent = ss.str();
@@ -254,6 +327,26 @@ End:
 		});
 
 	return 0;
+}
+
+int HlsProxy::Seek(uint64_t pos, double& newStartPos)
+{
+	if (!m_pOriginPlaylist)
+	{
+		qDebug() << "m_pOriginPlaylist is null";
+		return -1;
+	}
+
+	std::shared_ptr<HlsVariant> pVariant;
+	m_pOriginPlaylist->GetCurrentVariant(pVariant);
+
+	if (!pVariant)
+	{
+		qDebug() << "current variant is null";
+		return -1;
+	}
+
+	return pVariant->Seek(pos, newStartPos);
 }
 
 
@@ -275,32 +368,36 @@ int HlsProxyManager::Start()
 		return ret;
 	}
 
+	static QSharedMemory sm_port("hls_proxy_port1");
+	if (!sm_port.attach())
+	{
+		if (sm_port.create(8))
+		{
+			int port = pServer->Port();
+			sm_port.lock();
+			memcpy(sm_port.data(), &port, sizeof(port));
+			sm_port.unlock();
+		}
+	}
+
+
 	pServer->RegisterRouter("/hls_proxy_manager", [this](HttpConnection& conn) 
 		{
-			QStringList strQuery = QString::fromStdString(conn.GetQuery()).split('&');
 			QString strAction;
 			QString strOriginAddress;
 			QString strSessionId;
 
 			QJsonObject obj;
-			obj["code"] = 0;
+			obj["code"] = HlsProxyCode::OK;
 			obj["message"] = "OK";
 
-			for (int i = 0; i < strQuery.length(); ++i)
-			{
-				auto temp = strQuery[i].split('=');
-				if (temp.length() == 2)
-				{
-					if (temp[0].compare("action", Qt::CaseInsensitive) == 0)
-						strAction = temp[1];
-					else if (temp[0].compare("originAddress", Qt::CaseInsensitive) == 0)
-						strOriginAddress = temp[1];
-					else if (temp[0].compare("sessionId", Qt::CaseInsensitive) == 0)
-						strSessionId = temp[1];
-				}
-			}
+			auto mapQuery = ParseQuery(conn.GetQuery());
+			strAction = mapQuery["action"];
+			strOriginAddress = mapQuery["originAddress"];
+			strSessionId = mapQuery["sessionId"];
 
-			if (strAction == "start")
+			
+			if (strAction == "start") // start proxy
 			{
 				if (strOriginAddress.isEmpty() || strSessionId.isEmpty())
 				{
@@ -315,10 +412,11 @@ int HlsProxyManager::Start()
 				}
 
 				std::string strProxyAddress;
+				double duration = 0;
 				auto pHlsProxy = new HlsProxy();
-				if (0 != pHlsProxy->StartProxy(strOriginAddress.toStdString(), strProxyAddress))
+				if (0 != pHlsProxy->StartProxy(strOriginAddress.toStdString(), strProxyAddress, duration))
 				{
-					obj["code"] = 3;
+					obj["code"] = HlsProxyCode::StartProxyError;
 					obj["message"] = "start proxy fail";
 
 					delete pHlsProxy;
@@ -326,13 +424,14 @@ int HlsProxyManager::Start()
 				else
 				{
 					obj["proxyAddress"] = strProxyAddress.c_str();
+					obj["duration"] = duration;
 
 					m_mapProxy[strSessionId.toStdString()] = pHlsProxy;
 				}
 
 				SendJson(conn, obj);
 			}
-			else if (strAction == "stop")
+			else if (strAction == "stop") // stop proxy
 			{
 				auto iter = m_mapProxy.find(strSessionId.toStdString());
 				if (iter == m_mapProxy.end())

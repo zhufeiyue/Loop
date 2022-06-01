@@ -57,7 +57,7 @@ HlsVariant::~HlsVariant()
 {
 }
 
-HlsVariant::Type HlsVariant::GetType()
+HlsVariant::Type HlsVariant::GetType() const
 {
 	return m_variantType;
 }
@@ -165,9 +165,31 @@ int HlsVariant::Update()
 	return 0;
 }
 
-int HlsVariant::Seek(int)
+int HlsVariant::Seek(uint64_t pos, double& newStartPos)
 {
-	return 0;
+	// pos µ•Œª∫¡√Î
+	auto duration = GetDuration();
+
+	auto seekPos = static_cast<double>(pos) / 1000;
+	if (pos < 0 || seekPos >= duration)
+	{
+		return -1;
+	}
+
+	double startTime = 0;
+	for (size_t i = 0; i < m_segs.size(); ++i)
+	{
+		if (seekPos >= startTime && seekPos < startTime + m_segs[i]->GetDuration())
+		{
+			m_iCurrentSegIndex = (int64_t)i;
+			newStartPos = startTime;
+			return 0;
+		}
+
+		startTime += m_segs[i]->GetDuration();
+	}
+
+	return -1;
 }
 
 int HlsVariant::InitPlay()
@@ -216,7 +238,7 @@ int HlsVariant::InitPlay()
 	return 0;
 }
 
-int HlsVariant::GetCurrentSegment(std::shared_ptr<HlsSegment>& pSeg)
+int HlsVariant::GetCurrentSegment(std::shared_ptr<HlsSegment>& pSeg, bool& isEndSeg)
 {
 	if (m_variantType == Type::Live)
 	{
@@ -240,8 +262,19 @@ int HlsVariant::GetCurrentSegment(std::shared_ptr<HlsSegment>& pSeg)
 		return -1;
 	}
 
+
 	pSeg = m_segs[m_iCurrentSegIndex];
 	m_iCurrentSegIndex += 1;
+	
+	
+	isEndSeg = false;
+	if (GetType() == HlsVariant::Type::Vod)
+	{
+		if (m_iCurrentSegIndex >= (int64_t)m_segs.size())
+		{
+			isEndSeg = true;
+		}
+	}
 
 	return 0;
 }
@@ -249,6 +282,22 @@ int HlsVariant::GetCurrentSegment(std::shared_ptr<HlsSegment>& pSeg)
 int64_t HlsVariant::GetTargetDuration() const
 {
 	return m_targetDuration;
+}
+
+double  HlsVariant::GetDuration() const
+{
+	if (GetType() != HlsVariant::Type::Vod)
+	{
+		return 0;
+	}
+
+	double duration = 0;
+	for (auto iter = m_segs.begin(); iter != m_segs.end(); ++iter)
+	{
+		duration += (*iter)->GetDuration();
+	}
+
+	return duration;
 }
 
 int HlsVariant::Prepare()

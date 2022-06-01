@@ -92,10 +92,14 @@ HttpReply::~HttpReply()
 	qDebug() << __FUNCTION__;
 #endif
 
+
 	if (m_pReply)
 	{
+		QObject::disconnect(m_pReply, nullptr, this, nullptr);
+
 		m_pReply->close();
 		m_pReply->deleteLater();
+		m_pReply = nullptr;
 	}
 }
 
@@ -147,7 +151,7 @@ int SimpleGet(QString url, Dic& result, int timeout)
 				bValid->store(false);
 
 				dic.insert("code", 1);
-				dic.insert("message", "http request error");
+				dic.insert("message", "http request error: " + dic.get<std::string>("errorMessage"));
 				result = std::move(dic);
 
 				try
@@ -183,6 +187,12 @@ int SimpleGet(QString url, Dic& result, int timeout)
 	else if (status == std::future_status::deferred)
 	{
 	}
+
+	httpLoop.PushEvent([pClient]()
+		{
+			return 0;
+		});
+	pClient.reset();
 
 #ifdef _DEBUG
 	qDebug() << "http request use " << 

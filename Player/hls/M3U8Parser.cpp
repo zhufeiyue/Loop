@@ -282,29 +282,38 @@ int M3U8Parser::GetSegmentInfo(std::vector<Dic>& items)
 	Dic dic;
 	size_t pos;
 	auto segNo = GetSequenceNumber();
-	for (size_t i = 0; i < m_vecLines.size(); ++i)
+	for (size_t i = 0; i < m_vecLines.size(); )
 	{
 		//#EXTINF:<duration>,[<title>]
-		if (strncmp(m_vecLines[i].c_str(), "#EXTINF:", 8) == 0)
+		if (strncmp(m_vecLines[i].c_str(), "#EXTINF:", 8) != 0)
 		{
-			if (i + 1 >= m_vecLines.size())
-			{
-				return -1;
-			}
-
-			auto temp = split_string(m_vecLines[i].c_str() + 8, ',');
-			if (!temp.empty())
-			{
-				dic.insert("duration", atof(temp[0].c_str()));
-			}
-			if (temp.size() == 2)
-			{
-				dic.insert("title", temp[1]);
-			}
-			dic.insert("address", m_vecLines[i + 1]);
-			dic.insert("no", segNo++);
-			items.push_back(std::move(dic));
+			i += 1;
+			continue;
 		}
+
+		size_t j = i + 1;
+		for (; j < m_vecLines.size(); ++j)
+		{
+			if (!m_vecLines[j].empty() && m_vecLines[j].at(0) != '#')
+			{
+				auto temp = split_string(m_vecLines[i].c_str() + 8, ',');
+				if (!temp.empty())
+				{
+					dic.insert("duration", atof(temp[0].c_str()));
+				}
+				if (temp.size() == 2)
+				{
+					dic.insert("title", temp[1]);
+				}
+				dic.insert("address", m_vecLines[j]);
+				dic.insert("no", segNo++);
+				items.push_back(std::move(dic));
+
+				break;
+			}
+		}
+
+		i = j + 1;
 	}
 	return 0;
 }
@@ -312,15 +321,19 @@ int M3U8Parser::GetSegmentInfo(std::vector<Dic>& items)
 int ParseM3U8(std::string strPlaylistUrl, Dic& info, std::vector<Dic>& items)
 {
 	Dic responData;
+	int retry = 0;
 
 	qDebug() << "parse m3u8 " << strPlaylistUrl.c_str();
-	SimpleGet(QString::fromStdString(strPlaylistUrl), responData, 5000);
+again:
+	SimpleGet(QString::fromStdString(strPlaylistUrl), responData, 1000);
 
 	auto code = responData.get<int>("code");
 	if (code != 0)
 	{
 		std::string strMessage = responData.get<std::string>("message");
 		qDebug() << strMessage.c_str();
+		if (retry++ < 3)
+			goto again;
 		return -1;
 	}
 
@@ -355,6 +368,7 @@ int ParseM3U8(std::string strPlaylistUrl, Dic& info, std::vector<Dic>& items)
 		info.insert("master", 0);
 		info.insert("type", pParser->GetType());
 		info.insert("targetDuration", pParser->GetTargetDuration());
+		info.insert("address", trueUrl);
 		pParser->GetSegmentInfo(items);
 	}
 

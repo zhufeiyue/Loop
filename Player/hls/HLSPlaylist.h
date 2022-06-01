@@ -36,12 +36,13 @@ public:
 
 	HlsVariant(Dic&);
 	~HlsVariant();
-	Type GetType();
+	Type GetType() const;
 	int Clear();
 	int Update();
-	int Seek(int);
-	int GetCurrentSegment(std::shared_ptr<HlsSegment>& pSeg);
+	int Seek(uint64_t, double& newStartPos);
+	int GetCurrentSegment(std::shared_ptr<HlsSegment>& pSeg, bool& isEndSeg);
 	int64_t GetTargetDuration() const;
+	double  GetDuration() const;
 
 	int Prepare();
 

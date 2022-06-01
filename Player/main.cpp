@@ -286,7 +286,7 @@ int testQmlPlayer(int argc, char* argv[])
 		pFile = "D:/Ñ¸À×ÏÂÔØ/1/Ñô¹âµçÓ°www.ygdy8.com.007£ºÎÞÏ¾¸°ËÀ.2021.BD.1080P.¹úÓ¢Ë«ÓïË«×Ö.mkv";
 		pFile = "http://112.74.200.9:88/tv000000/m3u8.php?/migu/627198191";
 		pFile = "http://112.74.200.9:88/tv000000/m3u8.php?/migu/625204865";
-		pFile = "http://127.0.0.1:8000/1.m3u8";
+		//pFile = "http://127.0.0.1:8000/1.m3u8";
 	}
 
 	Player* player = nullptr;
@@ -325,8 +325,8 @@ int main(int argc, char* argv[])
 	av_log_set_callback(my_log_callback);
 	ChooseOpenGL();
 	//testBasePlayer(argc, argv);
-	testQmlPlayer(argc, argv);
-	//testHlsProxy(argc, argv);
+	//testQmlPlayer(argc, argv);
+	testHlsProxy(argc, argv);
 	//testHttpClient(argc, argv);
 
 	return 0;

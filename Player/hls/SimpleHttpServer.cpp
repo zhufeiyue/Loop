@@ -298,6 +298,7 @@ void HttpConnection::OnError(QAbstractSocket::SocketError)
 void HttpConnection::OnDisconnect()
 {
 	qDebug() << __FUNCTION__;
+	QObject::disconnect(m_pSocket, nullptr, this, nullptr);
 	this->deleteLater();
 }
 
