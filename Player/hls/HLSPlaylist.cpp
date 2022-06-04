@@ -2,6 +2,7 @@
 #include "M3U8Parser.h"
 
 #include <QDebug>
+#include <QTime>
 
 static HlsVariant::Type String2HlsVariantType(const std::string& strType)
 {
@@ -134,7 +135,10 @@ int HlsVariant::Update()
 	std::vector<Dic> items;
 	int ret;
 
+	QTime t;
+	t.start();
 	ret = ParseM3U8(m_strAddress, info, items);
+	qDebug() << "parse m3u8 use " << t.elapsed();
 	if (ret != 0)
 	{
 		return ret;
@@ -279,9 +283,19 @@ int HlsVariant::GetCurrentSegment(std::shared_ptr<HlsSegment>& pSeg, bool& isEnd
 	return 0;
 }
 
+int64_t HlsVariant::GetBandWidth() const
+{
+	return m_bandWidth;
+}
+
 int64_t HlsVariant::GetTargetDuration() const
 {
 	return m_targetDuration;
+}
+
+int64_t HlsVariant::GetVariantIndex() const
+{
+	return m_iVariantIndex;
 }
 
 double  HlsVariant::GetDuration() const
@@ -298,6 +312,16 @@ double  HlsVariant::GetDuration() const
 	}
 
 	return duration;
+}
+
+std::string HlsVariant::GetResolution() const
+{
+	return m_strResolution;
+}
+
+std::string HlsVariant::GetAddress() const
+{
+	return m_strAddress;
 }
 
 int HlsVariant::Prepare()
@@ -326,17 +350,58 @@ int HlsPlaylist::GetCurrentVariant(std::shared_ptr<HlsVariant>& pVariant)
 	return 0;
 }
 
-int HlsPlaylist::SwitchVariant(Dic)
+int HlsPlaylist::GetVariantInfoList(std::vector<Dic>& lists)
 {
+	lists.clear();
+
+	for (size_t i = 0; i < m_variants.size(); ++i)
+	{
+		Dic dic;
+		dic.insert("bandwidth", m_variants[i]->GetBandWidth());
+		dic.insert("resolution", m_variants[i]->GetResolution());
+		dic.insert("index", m_variants[i]->GetVariantIndex());
+
+		lists.emplace_back(std::move(dic));
+	}
+
 	return 0;
 }
 
-int HlsPlaylist::InitPlaylist(std::string strPlaylistUrl)
+int HlsPlaylist::SwitchVariant(Dic dic)
 {
+	auto iter = dic.find("newVariantIndex");
+	int index = iter->second.to<int>(-1);
+
+	if (index < 0 || index >= (int)m_variants.size())
+	{
+		return -1;;
+	}
+
+	if (m_pCurrentVariant && index == m_pCurrentVariant->GetVariantIndex())
+	{
+		return 0;
+	}
+
+	m_pCurrentVariant = m_variants[index];
+	m_pCurrentVariant->Clear();
+	return m_pCurrentVariant->InitPlay();
+}
+
+int HlsPlaylist::InitPlaylist(Dic dic)
+{
+	int ret;
 	Dic info;
+	std::string strHlsAddress;
+	std::string strDefaultVariant;
 	std::vector<Dic> items;
 
-	auto ret = ParseM3U8(strPlaylistUrl, info, items);
+	strHlsAddress = dic.get<std::string>("address");
+	strDefaultVariant = dic.get<std::string>("defaultVariant");
+
+	QTime t;
+	t.start();
+	ret = ParseM3U8(strHlsAddress, info, items);
+	qDebug() << "parse m3u8 use " << t.elapsed();
 	if (ret != 0)
 	{
 		return ret;
@@ -364,10 +429,10 @@ int HlsPlaylist::InitPlaylist(std::string strPlaylistUrl)
 		m_variants.push_back(std::move(pVariant));
 	}
 
-	return InitDefaultVariant();
+	return InitDefaultVariant(std::move(strDefaultVariant));
 }
 
-int HlsPlaylist::InitDefaultVariant()
+int HlsPlaylist::InitDefaultVariant( std::string strDefaultVariant)
 {
 	if (m_variants.empty())
 	{
@@ -375,19 +440,57 @@ int HlsPlaylist::InitDefaultVariant()
 		return -1;
 	}
 
-	// todo 下面直接使用第一个variant作为默认
-	m_pCurrentVariant = m_variants.front();
+	m_pCurrentVariant.reset();
+	if (strDefaultVariant.empty())
+	{
+		if (!m_variants.empty())
+		{
+			m_pCurrentVariant = m_variants.front();
+		}
+	}
+	else
+	{
+		// by bandwidth
+		int bitrate = atoi(strDefaultVariant.c_str());
+		std::sort(m_variants.begin(), m_variants.end(), 
+			[](std::shared_ptr<HlsVariant>& l, std::shared_ptr<HlsVariant>& r) 
+			{
+				return l->GetBandWidth() < r->GetBandWidth();
+			});
 
-	return m_pCurrentVariant->InitPlay();
-}
+		auto iter = std::min_element(m_variants.begin(), m_variants.end(), 
+			[bitrate](std::shared_ptr<HlsVariant>& l, std::shared_ptr<HlsVariant>& r)
+			{
+				auto n1 = std::abs(l->GetBandWidth() - bitrate);
+				auto n2 = std::abs(r->GetBandWidth() - bitrate);
 
-void testHls()
-{
-	auto pHlsPlaylist = new HlsPlaylist();
-	//pHlsPlaylist->InitPlaylist("http://112.74.200.9:88/tv000000/m3u8.php?/migu/625204865");
-	//pHlsPlaylist->InitPlaylist("http://112.74.200.9:88/tv000000/m3u8.php?/migu/637444830");
-	//pHlsPlaylist->InitPlaylist("https://newcntv.qcloudcdn.com/asp/hls/main/0303000a/3/default/4f7655094036437c8ec19bf50ba3a8e0/main.m3u8?maxbr=2048");
-	pHlsPlaylist->InitPlaylist("http://183.207.249.9/PLTV/3/224/3221225548/index.m3u8");
+				if (n1 < n2)
+				{
+					return true;
+				}
+				else if (n1 == n2)
+				{
+					return l->GetBandWidth() < r->GetBandWidth();
+				}
+				else
+				{
+					return false;
+				}
+			});
 
-	std::this_thread::sleep_for(std::chrono::seconds(120));
+		if (iter != m_variants.end())
+		{
+			m_pCurrentVariant = *iter;
+		}
+	}
+
+	for (size_t i = 0; i < m_variants.size(); ++i)
+	{
+		m_variants[i]->m_iVariantIndex = (int64_t)i;
+	}
+
+	if (m_pCurrentVariant)
+		return m_pCurrentVariant->InitPlay();
+	else
+		return -1;
 }

@@ -41,8 +41,12 @@ public:
 	int Update();
 	int Seek(uint64_t, double& newStartPos);
 	int GetCurrentSegment(std::shared_ptr<HlsSegment>& pSeg, bool& isEndSeg);
+	int64_t GetBandWidth() const;
 	int64_t GetTargetDuration() const;
+	int64_t GetVariantIndex() const;
 	double  GetDuration() const;
+	std::string GetResolution() const;
+	std::string GetAddress() const;
 
 	int Prepare();
 
@@ -57,6 +61,7 @@ private:
 	int64_t     m_bandWidth;
 	int64_t     m_targetDuration = 10;
 	int64_t     m_iCurrentSegIndex = 0;
+	int64_t     m_iVariantIndex = -1;
 
 	std::chrono::steady_clock::time_point    m_timePointLastAccess;
 	std::vector<std::shared_ptr<HlsSegment>> m_segs;
@@ -65,12 +70,13 @@ private:
 class HlsPlaylist
 {
 public:
-	int InitPlaylist(std::string);
-	int GetCurrentVariant(std::shared_ptr<HlsVariant>& pVariant);
+	int InitPlaylist(Dic);
 	int SwitchVariant(Dic);
+	int GetCurrentVariant(std::shared_ptr<HlsVariant>& pVariant);
+	int GetVariantInfoList(std::vector<Dic>&);
 
 protected:
-	int InitDefaultVariant();
+	int InitDefaultVariant(std::string);
 
 private:
 	std::vector<std::shared_ptr<HlsVariant>> m_variants;

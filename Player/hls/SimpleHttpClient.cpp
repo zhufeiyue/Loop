@@ -3,6 +3,7 @@
 
 #include <QApplication>
 #include <QDebug>
+#include <QNetworkProxy>
 
 void testHttpClient(int argc, char* argv[])
 {
@@ -22,6 +23,7 @@ void testHttpClient(int argc, char* argv[])
 HttpRequestManager::HttpRequestManager()
 {
 	qDebug() << __FUNCTION__;
+	m_netManager.setProxy(QNetworkProxy::NoProxy);
 }
 
 HttpRequestManager::~HttpRequestManager()
@@ -33,8 +35,9 @@ QNetworkReply* HttpRequestManager::Get(QString url)
 {
 	QNetworkRequest req;
 	req.setAttribute(QNetworkRequest::FollowRedirectsAttribute, true);
+	req.setAttribute(QNetworkRequest::Http2AllowedAttribute, true);
 	req.setUrl(url);
-	req.setRawHeader("Cache-Control", "no-cache");
+	//req.setRawHeader("Cache-Control", "no-cache");
 
 	return m_netManager.get(req);
 }

@@ -325,7 +325,7 @@ int ParseM3U8(std::string strPlaylistUrl, Dic& info, std::vector<Dic>& items)
 
 	qDebug() << "parse m3u8 " << strPlaylistUrl.c_str();
 again:
-	SimpleGet(QString::fromStdString(strPlaylistUrl), responData, 1000);
+	SimpleGet(QString::fromStdString(strPlaylistUrl), responData, 2000);
 
 	auto code = responData.get<int>("code");
 	if (code != 0)
