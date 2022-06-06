@@ -35,7 +35,7 @@ QNetworkReply* HttpRequestManager::Get(QString url)
 {
 	QNetworkRequest req;
 	req.setAttribute(QNetworkRequest::FollowRedirectsAttribute, true);
-	req.setAttribute(QNetworkRequest::Http2AllowedAttribute, true);
+	//req.setAttribute(QNetworkRequest::Http2AllowedAttribute, true);
 	req.setUrl(url);
 	//req.setRawHeader("Cache-Control", "no-cache");
 

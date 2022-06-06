@@ -40,7 +40,9 @@ public:
 	int Clear();
 	int Update();
 	int Seek(uint64_t, double& newStartPos);
+	int SwitchTo(int64_t);
 	int GetCurrentSegment(std::shared_ptr<HlsSegment>& pSeg, bool& isEndSeg);
+	int GetCurrentSegmentNo(int64_t&);
 	int64_t GetBandWidth() const;
 	int64_t GetTargetDuration() const;
 	int64_t GetVariantIndex() const;

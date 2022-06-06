@@ -196,6 +196,26 @@ int HlsVariant::Seek(uint64_t pos, double& newStartPos)
 	return -1;
 }
 
+int HlsVariant::SwitchTo(int64_t segNo)
+{
+	Clear();
+	if (0 != InitPlay())
+	{
+		return -1;
+	}
+
+	for (size_t i = 0; i < m_segs.size(); ++i)
+	{
+		if (m_segs[i]->GetNo() == segNo)
+		{
+			m_iCurrentSegIndex = (int64_t)i;
+			return 0;
+		}
+	}
+
+	return -1;
+}
+
 int HlsVariant::InitPlay()
 {
 	int ret = -1;
@@ -238,7 +258,7 @@ int HlsVariant::InitPlay()
 	}
 
 	m_segs[m_iCurrentSegIndex]->Prepare();
-
+	m_timePointLastAccess = std::chrono::steady_clock::now();
 	return 0;
 }
 
@@ -279,6 +299,18 @@ int HlsVariant::GetCurrentSegment(std::shared_ptr<HlsSegment>& pSeg, bool& isEnd
 			isEndSeg = true;
 		}
 	}
+
+	return 0;
+}
+
+int HlsVariant::GetCurrentSegmentNo(int64_t& segNo)
+{
+	if (m_iCurrentSegIndex < 0 || m_iCurrentSegIndex >= (int64_t)m_segs.size())
+	{
+		return -1;
+	}
+
+	segNo = m_segs[m_iCurrentSegIndex]->GetNo();
 
 	return 0;
 }
@@ -328,6 +360,12 @@ int HlsVariant::Prepare()
 {
 	if (m_variantType == Type::Live)
 	{
+		if (m_segs.size() > 20)
+		{
+			m_segs.erase(m_segs.begin());
+			m_iCurrentSegIndex -= 1;
+		}
+
 		if (m_iCurrentSegIndex >= (int64_t)m_segs.size() - 1)
 		{
 			Update();
@@ -370,21 +408,37 @@ int HlsPlaylist::GetVariantInfoList(std::vector<Dic>& lists)
 int HlsPlaylist::SwitchVariant(Dic dic)
 {
 	auto iter = dic.find("newVariantIndex");
-	int index = iter->second.to<int>(-1);
+	int newVariantIndex = iter->second.to<int>(-1);
 
-	if (index < 0 || index >= (int)m_variants.size())
+	if (newVariantIndex < 0 || newVariantIndex >= (int)m_variants.size())
 	{
 		return -1;;
 	}
 
-	if (m_pCurrentVariant && index == m_pCurrentVariant->GetVariantIndex())
+	if (!m_pCurrentVariant)
+	{
+		return -1;
+	}
+
+	if (newVariantIndex == m_pCurrentVariant->GetVariantIndex())
 	{
 		return 0;
 	}
 
-	m_pCurrentVariant = m_variants[index];
-	m_pCurrentVariant->Clear();
-	return m_pCurrentVariant->InitPlay();
+	int64_t segNo = 0;
+	if (0 != m_pCurrentVariant->GetCurrentSegmentNo(segNo))
+	{
+		return -1;
+	}
+
+	auto newVariant = m_variants[newVariantIndex];
+	if (0 != newVariant->SwitchTo(segNo))
+	{
+		return -1;
+	}
+
+	m_pCurrentVariant = newVariant;
+	return 0;
 }
 
 int HlsPlaylist::InitPlaylist(Dic dic)
