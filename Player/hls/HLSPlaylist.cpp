@@ -31,6 +31,22 @@ static std::string HlsVariantType2String(HlsVariant::Type type)
 	return "unknown";
 }
 
+#define SupportDown
+#ifdef SupportDown
+int StartTsProxy(const std::string&, std::string&);
+int StopTsProxy(const std::string&);
+#else
+static int StartTsProxy(const std::string& strOrigin, std::string& strProxy)
+{
+	strProxy = strOrigin;
+	return 0;
+}
+static int StopTsProxy(const std::string&)
+{
+	return 0;
+}
+#endif
+
 HlsSegment::HlsSegment(Dic& dic)
 {
 	this->no = dic.get<int64_t>("no");
@@ -38,8 +54,59 @@ HlsSegment::HlsSegment(Dic& dic)
 	this->duration = dic.get<double>("duration");
 }
 
-int HlsSegment::Prepare()
+HlsSegment::~HlsSegment()
 {
+	UnLoad();
+}
+
+std::string HlsSegment::GetURL() const
+{
+	if (preloadType == PreloadType::Download)
+	{
+		if (!strProxyAddress.empty())
+		{
+			return strProxyAddress;
+		}
+	}
+	return strAddress;
+}
+
+int HlsSegment::PreLoad(HlsSegment::PreloadType type)
+{
+	if (preloadType != PreloadType::Unknown)
+	{
+		qDebug() << "preload type is sure";
+		return -1;
+	}
+
+	preloadType = type;
+	if (preloadType == PreloadType::Forward)
+	{
+	}
+	else if (preloadType == PreloadType::Download)
+	{
+		if (0 != StartTsProxy(strAddress, strProxyAddress))
+		{
+			strProxyAddress.clear();
+		}
+	}
+	else if (preloadType == PreloadType::Unknown)
+	{
+	}
+
+	return 0;
+}
+
+int HlsSegment::UnLoad()
+{
+	if (preloadType == PreloadType::Download)
+	{
+		if (!strProxyAddress.empty())
+		{
+			StopTsProxy(strProxyAddress);
+			strProxyAddress.clear();
+		}
+	}
 	return 0;
 }
 
@@ -257,19 +324,20 @@ int HlsVariant::InitPlay()
 		return -1;
 	}
 
-	m_segs[m_iCurrentSegIndex]->Prepare();
+	m_segs[m_iCurrentSegIndex]->PreLoad();
 	m_timePointLastAccess = std::chrono::steady_clock::now();
 	return 0;
 }
 
 int HlsVariant::GetCurrentSegment(std::shared_ptr<HlsSegment>& pSeg, bool& isEndSeg)
 {
+	auto now = std::chrono::steady_clock::now();
+	auto interval = now - m_timePointLastAccess;
+	qDebug() << "m3u8 request interval " << std::chrono::duration_cast<std::chrono::milliseconds>(interval).count();
+	m_timePointLastAccess = now;
+
 	if (m_variantType == Type::Live)
 	{
-		auto now = std::chrono::steady_clock::now();
-		auto interval = now - m_timePointLastAccess;
-		qDebug() << "m3u8 request interval " << std::chrono::duration_cast<std::chrono::milliseconds>(interval).count();
-		m_timePointLastAccess = now;
 		if (interval > std::chrono::seconds(60))
 		{
 			Clear();
@@ -358,6 +426,12 @@ std::string HlsVariant::GetAddress() const
 
 int HlsVariant::Prepare()
 {
+	int64_t index = m_iCurrentSegIndex - 3;
+	if (index >= 0 && index < (int64_t)m_segs.size())
+	{
+		m_segs[index]->UnLoad();
+	}
+
 	if (m_variantType == Type::Live)
 	{
 		if (m_segs.size() > 20)
@@ -370,6 +444,21 @@ int HlsVariant::Prepare()
 		{
 			Update();
 		}
+	}
+	else if (m_variantType == Type::Vod)
+	{
+	}
+
+	// 准备下一个segment
+	index = m_iCurrentSegIndex;
+	if (index >= 0 && index < (int64_t)m_segs.size())
+	{
+		qDebug() << "download " << m_segs[index]->GetURL().c_str();
+		m_segs[index]->PreLoad(HlsSegment::PreloadType::Download);
+	}
+	else
+	{
+		qDebug() << "dont know what to download";
 	}
 
 	return 0;

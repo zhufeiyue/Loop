@@ -2,9 +2,11 @@
 #include <algorithm>
 #include <string>
 #include <sstream>
+#include <set>
 #include <functional>
 #include <map>
 #include <random>
+#include <deque>
 
 #include <QTcpServer>
 #include <QTcpSocket>
@@ -17,8 +19,9 @@
 void testHttpServer(int, char**);
 
 class SimpleHttpServer;
-class HttpConnection : QObject
+class HttpConnection : public QObject, public std::enable_shared_from_this<HttpConnection>
 {
+	//这个类是单线程的，所有操作都是串行的
 	Q_OBJECT
 public:
 	struct string_case_cmp_less
@@ -42,11 +45,15 @@ public:
 	const std::string& GetQuery() const { return m_strQuery; }
 
 	int Send(std::string&&, int responCode = 200);
+	int Send(QByteArray, int responCode = 200);
+	int SendPart(QByteArray, int64_t, bool firstPart, int responCode = 200);
 	int SendFile(std::string, int responCode = 200);
 	int SetResponHeader(std::string, std::string);
+	int Terminate();
 
 private:
 	int DoSend();
+	int DoSendData();
 
 protected Q_SLOTS:
 	void OnError(QAbstractSocket::SocketError);
@@ -62,9 +69,12 @@ private:
 	QByteArray           m_recvBuf;
 	
 	std::map<std::string, std::string, string_case_cmp_less> m_mapResponHeader;
-	std::string          m_strRespon;
+	std::deque<std::pair<QByteArray, int64_t>> m_sendQueue;
 	int                  m_code = 500;
-	qint64               m_iWritten = 0;
+	bool                 m_bWriting = false;
+	qint64               m_iResponWritten = 0;
+	qint64               m_iResponHeaderLength = 0;
+	qint64               m_iResponBodyLength = 0;
 
 public:
 	std::string m_strURL;
@@ -73,11 +83,13 @@ public:
 	bool m_bRequestDone       = false;
 };
 
+typedef std::shared_ptr<HttpConnection> HttpConnectionPtr;
+
 class SimpleHttpServer : public QObject
 {
 	Q_OBJECT
 public:
-	typedef std::function<int(HttpConnection&)> RouterCb;
+	typedef std::function<int(HttpConnectionPtr)> RouterCb;
 
 public:
 	SimpleHttpServer(QObject*);
@@ -88,7 +100,10 @@ public:
 
 	int RegisterRouter(std::string, RouterCb);
 	int UnRegisterRouter(std::string);
-	int Router(HttpConnection&);
+	int Router(HttpConnectionPtr);
+
+	int StartConnection(HttpConnectionPtr);
+	int EndConnection(HttpConnectionPtr);
 
 protected Q_SLOTS:
 	void OnNewConnection();
@@ -97,4 +112,5 @@ protected Q_SLOTS:
 private:
 	QTcpServer*                     m_pServer = nullptr;
 	std::map<std::string, RouterCb> m_mapRouter;
+	std::set<HttpConnectionPtr>     m_connections;
 };

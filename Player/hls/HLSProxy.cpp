@@ -47,7 +47,7 @@ static int64_t CreateRandomNumber()
 	return result;
 }
 
-static int GetServer(std::shared_ptr<SimpleHttpServer>& got)
+int GetServer(std::shared_ptr<SimpleHttpServer>& got)
 {
 	static std::shared_ptr<SimpleHttpServer> gpServer;
 	if (gpServer)
@@ -84,26 +84,16 @@ static int GetServer(std::shared_ptr<SimpleHttpServer>& got)
 	return 0;
 }
 
-static int SendJson(HttpConnection& conn, QJsonObject jsonRespon)
+static int SendJson(HttpConnectionPtr conn, QJsonObject jsonRespon)
 {
-	auto strRespon =  QJsonDocument(jsonRespon).toJson(QJsonDocument::Compact).toStdString();
-	conn.SetResponHeader("Content-Type", "application/json");
-	conn.Send(std::move(strRespon));
+	auto strRespon =  QJsonDocument(jsonRespon).toJson(QJsonDocument::Compact);
+	conn->SetResponHeader("Content-Type", "application/json");
+	conn->Send(std::move(strRespon));
 
 	return 0;
 }
 
-enum HlsProxyCode
-{
-	OK  = 0,
-	InvalidParam,
-	Duplicate,
-	StartProxyError,
-	SeekError,
-	SwitchError
-};
-
-static int SendInvalidParameter(HttpConnection& conn){
+static int SendInvalidParameter(HttpConnectionPtr conn){
 	QJsonObject obj;
 	obj["code"] = HlsProxyCode::InvalidParam;
 	obj["message"] = "invalid parameter";
@@ -111,7 +101,7 @@ static int SendInvalidParameter(HttpConnection& conn){
 	return 0;
 }
 
-static int SendDuplicate(HttpConnection& conn){
+static int SendDuplicate(HttpConnectionPtr conn){
 	QJsonObject obj;
 	obj["code"] = HlsProxyCode::Duplicate;
 	obj["message"] = "duplicate";
@@ -191,9 +181,9 @@ int HlsProxy::StartProxy(HlsProxyParam& param)
 	//m_strProxyName = "/1.m3u8";
 
 	param.strProxyAddress = "http://127.0.0.1:" + std::to_string(pServer->Port()) + m_strProxyName;
-	pServer->RegisterRouter(m_strProxyName, [this](HttpConnection& conn) 
+	pServer->RegisterRouter(m_strProxyName, [this](HttpConnectionPtr conn)
 		{
-			QMap<QString, QString> mapQuery = ParseQuery(conn.GetQuery());
+			QMap<QString, QString> mapQuery = ParseQuery(conn->GetQuery());
 
 			if (mapQuery["action"] == "seek")
 			{
@@ -209,12 +199,12 @@ int HlsProxy::StartProxy(HlsProxyParam& param)
 			if (ret != 0)
 			{
 				qDebug() << "GetContent error " << ret;
-				conn.Send("500", 500);
+				conn->Send(std::string("500"), 500);
 				return 0;
 			}
 
-			conn.SetResponHeader("Content-Type", "application/vnd.apple.mpegurl");
-			conn.Send(std::move(strContent), 200);
+			conn->SetResponHeader("Content-Type", "application/vnd.apple.mpegurl");
+			conn->Send(std::move(strContent), 200);
 
 			return 0;
 		});
@@ -283,11 +273,11 @@ int HlsProxy::GetContent(std::string& strContent)
 		<< " duration: " << duration
 		<< " target duration: " << pVariant->GetTargetDuration();
 
-	duration -= 3;
-	if (duration < 1)
-	{
-		duration = 1;
-	}
+	//duration -= 3;
+	//if (duration < 1)
+	//{
+	//	duration = 1;
+	//}
 
 	ss << "#EXTM3U\n";
 	ss << "#EXT-X-VERSION:7\n";
@@ -337,7 +327,7 @@ int HlsProxy::Seek(uint64_t pos, double& newStartPos)
 	return pVariant->Seek(pos, newStartPos);
 }
 
-int HlsProxy::HandleSeek(HttpConnection& conn, QMap<QString, QString>& mapQuery)
+int HlsProxy::HandleSeek(HttpConnectionPtr conn, QMap<QString, QString>& mapQuery)
 {
 	QJsonObject obj;
 	double newStartPos = 0;
@@ -358,7 +348,7 @@ int HlsProxy::HandleSeek(HttpConnection& conn, QMap<QString, QString>& mapQuery)
 	return 0;
 }
 
-int HlsProxy::HandleSwitchVariant(HttpConnection& conn, QMap<QString, QString>& mapQuery)
+int HlsProxy::HandleSwitchVariant(HttpConnectionPtr conn, QMap<QString, QString>& mapQuery)
 {
 	Dic dic;
 	dic.insert("newVariantIndex", mapQuery["index"].toInt());
@@ -411,9 +401,9 @@ int HlsProxyManager::Start()
 	}
 
 
-	pServer->RegisterRouter("/hls_proxy_manager", [this](HttpConnection& conn) 
+	pServer->RegisterRouter("/hls_proxy_manager", [this](HttpConnectionPtr conn)
 		{
-			auto mapQuery = ParseQuery(conn.GetQuery());
+			auto mapQuery = ParseQuery(conn->GetQuery());
 			QString strAction = mapQuery["action"];
 
 			if (strAction == "start")
@@ -440,7 +430,7 @@ int HlsProxyManager::Stop()
 	return 0;
 }
 
-int HlsProxyManager::HandleStartPlayProxy(HttpConnection& conn, QMap<QString, QString>& mapQuery)
+int HlsProxyManager::HandleStartPlayProxy(HttpConnectionPtr conn, QMap<QString, QString>& mapQuery)
 {
 	QJsonObject obj;
 	obj["code"] = HlsProxyCode::OK;
@@ -498,7 +488,7 @@ int HlsProxyManager::HandleStartPlayProxy(HttpConnection& conn, QMap<QString, QS
 	return 0;
 }
 
-int HlsProxyManager::HandleStopPlayProxy(HttpConnection& conn, QMap<QString, QString>& mapQuery)
+int HlsProxyManager::HandleStopPlayProxy(HttpConnectionPtr conn, QMap<QString, QString>& mapQuery)
 {
 	QString strSessionId = mapQuery["sessionId"];
 

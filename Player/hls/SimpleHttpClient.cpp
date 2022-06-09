@@ -9,12 +9,33 @@ void testHttpClient(int argc, char* argv[])
 {
 	QApplication app(argc, argv);
 
-	if (true)
+	if (false)
 	{
 		Dic result;
 		//SimpleGet("http://112.74.200.9:88/tv000000/m3u8.php?/migu/627198191", result, 3000);
 		SimpleGet("http://dys1.v.myalicdn.com/lhls/lhls_c20_2-llhls.m3u8?aliyunols=on", result, 3000);
 		qDebug() << result.get<int>("code");
+	}
+
+	HttpRequestManager manager;
+	if (true)
+	{
+		auto pHttpDownload = new HttpDownload(
+			//manager.Get("https://cdnhp17.yesky.com/629ef530/8460dd4a62622009bb10a38e833cf99b/newsoft/QQGame_5.19.57014.0_0_0_1080000167_0.exe"),
+			manager.Get("https://cn.bing.com/search?form=MOZLBR&pc=MOZI&q=%E5%8C%97%E4%BA%AC+%E4%B8%AD%E9%A3%8E%E9%99%A9%E5%9C%B0%E5%8C%BA"),
+			[](QByteArray data, Dic dic)
+			{
+				qDebug() << data.size() << " : " << dic.get<int64_t>("totalSize") << " : " << dic.get<int>("httpCode");
+				return 0; 
+			},
+			[](Dic dic) 
+			{
+				//qDebug() << dic.get<int>("httpCode");
+			},
+			[](Dic dic) 
+			{
+				qDebug() << dic.get<QString>("errorMessage");
+			});
 	}
 
 	app.exec();
@@ -91,9 +112,9 @@ HttpReply::HttpReply(QNetworkReply* pReplay,
 
 HttpReply::~HttpReply()
 {
-#ifdef _DEBUG
-	qDebug() << __FUNCTION__;
-#endif
+//#ifdef _DEBUG
+//	qDebug() << __FUNCTION__;
+//#endif
 
 
 	if (m_pReply)
@@ -203,4 +224,28 @@ int SimpleGet(QString url, Dic& result, int timeout)
 #endif
 
 	return 0;
+}
+
+HttpDownload::HttpDownload(
+	QNetworkReply* pReply,
+	HttpDownloadProgressCallback prgressCb,
+	HttpReply::HttpReplyCallback finishCb,
+	HttpReply::HttpReplyCallback errorCb) :
+	HttpReply(pReply, finishCb, errorCb),
+	m_downloadProgressCb(std::move(prgressCb))
+{
+	QObject::connect(pReply, &QNetworkReply::downloadProgress,
+		this, [this, pReply](int64_t bytesReceived, int64_t bytesTotal)
+		{
+			auto data = pReply->readAll();
+			if (m_downloadProgressCb)
+			{
+				Dic dic;
+				dic.insert("httpCode", pReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt());
+				dic.insert("httpUrl", pReply->url().toString());
+				dic.insert("totalSize", bytesTotal);
+
+				m_downloadProgressCb(data, dic);
+			}
+		});
 }

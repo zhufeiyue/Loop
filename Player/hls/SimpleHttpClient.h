@@ -41,3 +41,19 @@ private:
 };
 
 int SimpleGet(QString, Dic&, int timeout = 5000);
+
+class HttpDownload : public HttpReply
+{
+	Q_OBJECT
+public:
+	typedef std::function<int(QByteArray, Dic)> HttpDownloadProgressCallback;
+
+public:
+	HttpDownload(QNetworkReply*,
+		HttpDownloadProgressCallback progressCb,
+		HttpReply::HttpReplyCallback finishCb,
+		HttpReply::HttpReplyCallback errorCb);
+
+private:
+	HttpDownloadProgressCallback m_downloadProgressCb;
+};

@@ -317,6 +317,7 @@ int testQmlPlayer(int argc, char* argv[])
 }
 
 void testHttpClient(int arc, char* argv[]);
+void testHttpServer(int, char**);
 
 int main(int argc, char* argv[])
 {
@@ -328,6 +329,7 @@ int main(int argc, char* argv[])
 	//testQmlPlayer(argc, argv);
 	testHlsProxy(argc, argv);
 	//testHttpClient(argc, argv);
+	//testHttpServer(argc, argv);
 
 	return 0;
 }

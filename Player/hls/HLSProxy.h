@@ -4,6 +4,17 @@
 #include <QMap>
 
 void testHlsProxy(int argc, char* argv[]);
+int GetServer(std::shared_ptr<SimpleHttpServer>&);
+
+enum HlsProxyCode
+{
+	OK = 0,
+	InvalidParam,
+	Duplicate,
+	StartProxyError,
+	SeekError,
+	SwitchError
+};
 
 struct HlsProxyParam
 {
@@ -30,8 +41,8 @@ private:
 	int Seek(uint64_t pos, double& newStartPos);
 
 private:
-	int HandleSeek(HttpConnection& conn, QMap<QString, QString>&);
-	int HandleSwitchVariant(HttpConnection& conn, QMap<QString, QString>&);
+	int HandleSeek(HttpConnectionPtr conn, QMap<QString, QString>&);
+	int HandleSwitchVariant(HttpConnectionPtr conn, QMap<QString, QString>&);
 
 private:
 	std::unique_ptr<HlsPlaylist> m_pOriginPlaylist;
@@ -51,8 +62,8 @@ public:
 	int Stop();
 
 private:
-	int HandleStartPlayProxy(HttpConnection& conn, QMap<QString, QString>&);
-	int HandleStopPlayProxy(HttpConnection& conn, QMap<QString, QString>&);
+	int HandleStartPlayProxy(HttpConnectionPtr conn, QMap<QString, QString>&);
+	int HandleStopPlayProxy(HttpConnectionPtr conn, QMap<QString, QString>&);
 
 private:
 	std::map<std::string, HlsProxy*> m_mapProxy;

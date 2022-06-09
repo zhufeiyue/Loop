@@ -8,17 +8,29 @@
 class HlsSegment
 {
 public:
+	enum class PreloadType
+	{
+		Unknown,
+		Forward, //直接下发ts的网络地址
+		Download //下载ts走代理
+	};
+
 	HlsSegment(Dic&);
+	~HlsSegment();
 	int64_t GetNo() const { return no; }
 	double  GetDuration() const { return duration; }
-	std::string GetURL() const { return strAddress; }
+	std::string GetURL() const;
+	PreloadType GetPreloadType() const { return preloadType; }
 
-	int Prepare();
+	int PreLoad(PreloadType type = PreloadType::Forward);
+	int UnLoad();
 
 private:
 	std::string strAddress;
+	std::string strProxyAddress;
 	double      duration;
 	int64_t     no;
+	PreloadType preloadType = PreloadType::Unknown;
 };
 
 class HlsVariant
