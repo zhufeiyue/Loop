@@ -107,6 +107,8 @@ TsDownloadProxy::TsDownloadProxy(std::string s) : TsProxy(s)
 		[this](Dic dic) { DownloadFinish(dic); },
 		[this](Dic dic){ DownloadError(dic); }
 		);
+
+	m_timeDownloadStart = std::chrono::steady_clock::now();
 }
 
 TsDownloadProxy::~TsDownloadProxy()
@@ -124,7 +126,9 @@ TsDownloadProxy::~TsDownloadProxy()
 int TsDownloadProxy::DownloadFinish(Dic&)
 {
 	m_bDownloadFinish = true;
-	qDebug() << "download finish";
+
+	auto now = std::chrono::steady_clock::now();
+	qDebug() << "download finish " << std::chrono::duration_cast<std::chrono::milliseconds>(now - m_timeDownloadStart).count();
 	return 0;
 }
 
@@ -201,8 +205,14 @@ int TsDownloadStreamProxy::HandleTsRequest(HttpConnectionPtr p)
 	else
 	{
 		qDebug() << "ts download not finish";
-		p->SendPart(m_data, m_iTotalSize, true);
-		m_conns.push_back(p);
+		if (0 == p->SendPart(m_data, m_iTotalSize, true))
+		{
+			m_conns.push_back(p);
+		}
+		else
+		{
+			qDebug() << "send part fail";
+		}
 	}
 
 	return 0;
@@ -232,9 +242,16 @@ int TsDownloadStreamProxy::DownloadProgress(QByteArray& data, Dic& dic)
 		return -1;
 	}
 
-	for (size_t i = 0; i < m_conns.size(); ++i)
+	for (auto iter = m_conns.begin(); iter != m_conns.end();)
 	{
-		m_conns[i]->SendPart(data, m_iTotalSize, false);
+		if (0 != (*iter)->SendPart(data, m_iTotalSize, false))
+		{
+			iter = m_conns.erase(iter);
+		}
+		else
+		{
+			++iter;
+		}
 	}
 
 	return 0;

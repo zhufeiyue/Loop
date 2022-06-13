@@ -125,7 +125,7 @@ static QMap<QString, QString> ParseQuery(const std::string& strQuery)
 
 		mapQuery[k] = v;
 
-		qDebug() << k << " : " << v;
+		//qDebug() << k << " : " << v;
 	}
 
 	return mapQuery;
@@ -185,7 +185,11 @@ int HlsProxy::StartProxy(HlsProxyParam& param)
 		{
 			QMap<QString, QString> mapQuery = ParseQuery(conn->GetQuery());
 
-			if (mapQuery["action"] == "seek")
+			if (mapQuery["action"] == "monitor")
+			{
+				return HandleMonitor(conn, mapQuery);
+			}
+			else if (mapQuery["action"] == "seek")
 			{
 				return HandleSeek(conn, mapQuery);
 			}
@@ -296,7 +300,7 @@ int HlsProxy::GetContent(std::string& strContent)
 	m_strLastResponCntent = strContent;
 
 End:
-	QTimer::singleShot(10, [pVariant]()
+	QTimer::singleShot(0, [pVariant]()
 		{
 			if (pVariant)
 			{
@@ -325,6 +329,17 @@ int HlsProxy::Seek(uint64_t pos, double& newStartPos)
 	}
 
 	return pVariant->Seek(pos, newStartPos);
+}
+
+int HlsProxy::HandleMonitor(HttpConnectionPtr conn, QMap<QString, QString>&)
+{
+	QJsonObject obj;
+
+	obj["code"] = HlsProxyCode::OK;
+
+	SendJson(conn, obj);
+
+	return 0;
 }
 
 int HlsProxy::HandleSeek(HttpConnectionPtr conn, QMap<QString, QString>& mapQuery)

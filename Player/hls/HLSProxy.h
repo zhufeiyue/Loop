@@ -13,7 +13,8 @@ enum HlsProxyCode
 	Duplicate,
 	StartProxyError,
 	SeekError,
-	SwitchError
+	SwitchError,
+	MonitorError
 };
 
 struct HlsProxyParam
@@ -41,6 +42,7 @@ private:
 	int Seek(uint64_t pos, double& newStartPos);
 
 private:
+	int HandleMonitor(HttpConnectionPtr conn, QMap<QString, QString>&);
 	int HandleSeek(HttpConnectionPtr conn, QMap<QString, QString>&);
 	int HandleSwitchVariant(HttpConnectionPtr conn, QMap<QString, QString>&);
 

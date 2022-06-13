@@ -427,9 +427,9 @@ std::string HlsVariant::GetAddress() const
 int HlsVariant::Prepare()
 {
 	int64_t index = m_iCurrentSegIndex - 3;
-	if (index >= 0 && index < (int64_t)m_segs.size())
+	for (int64_t i = 0; i < m_iCurrentSegIndex - 5; ++i)
 	{
-		m_segs[index]->UnLoad();
+		m_segs[i]->UnLoad();
 	}
 
 	if (m_variantType == Type::Live)
@@ -440,7 +440,7 @@ int HlsVariant::Prepare()
 			m_iCurrentSegIndex -= 1;
 		}
 
-		if (m_iCurrentSegIndex >= (int64_t)m_segs.size() - 1)
+		if (m_iCurrentSegIndex >= (int64_t)m_segs.size() - 2)
 		{
 			Update();
 		}

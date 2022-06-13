@@ -236,10 +236,14 @@ int HttpConnection::SendFile(std::string strFilePath, int responCode)
 
 int HttpConnection::SendPart(QByteArray data_part, int64_t bodyTotalLength, bool firstPart, int responCode)
 {
-	m_code = responCode;
+	if (!m_pSocket || !m_pSocket->isOpen())
+	{
+		return -1;
+	}
 
 	if (firstPart)
 	{
+		m_code = responCode;
 		m_iResponBodyLength = bodyTotalLength;
 		m_sendQueue.push_back(std::make_pair(data_part, 0));
 	}

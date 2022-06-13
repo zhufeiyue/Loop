@@ -14,7 +14,7 @@
 #include <QDateTime>
 #include <QLocale>
 
-#include <common/http_parser.h>
+#include "http_parser.h"
 
 void testHttpServer(int, char**);
 
