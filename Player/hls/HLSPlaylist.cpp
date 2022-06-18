@@ -1,5 +1,6 @@
 #include "HLSPlaylist.h"
 #include "M3U8Parser.h"
+#include "Monitor.h"
 
 #include <QDebug>
 #include <QTime>
@@ -33,15 +34,19 @@ static std::string HlsVariantType2String(HlsVariant::Type type)
 
 #define SupportDown
 #ifdef SupportDown
-int StartTsProxy(const std::string&, std::string&);
+int StartTsProxy(const std::string&, const std::string&, double, std::string&);
 int StopTsProxy(const std::string&);
 #else
-static int StartTsProxy(const std::string& strOrigin, std::string& strProxy)
+static int StartTsProxy(
+	const std::string& strOrigin, 
+	const std::string& strSessionId, 
+	double tsDuration,
+	std::string& strProxy)
 {
 	strProxy = strOrigin;
 	return 0;
 }
-static int StopTsProxy(const std::string&)
+static int StopTsProxy(const std::string& strProxy)
 {
 	return 0;
 }
@@ -71,7 +76,7 @@ std::string HlsSegment::GetURL() const
 	return strAddress;
 }
 
-int HlsSegment::PreLoad(HlsSegment::PreloadType type)
+int HlsSegment::PreLoad(const std::string& strSessionId, HlsSegment::PreloadType type)
 {
 	if (preloadType != PreloadType::Unknown)
 	{
@@ -85,7 +90,12 @@ int HlsSegment::PreLoad(HlsSegment::PreloadType type)
 	}
 	else if (preloadType == PreloadType::Download)
 	{
-		if (0 != StartTsProxy(strAddress, strProxyAddress))
+		if (GetDuration() < 3)
+		{
+			return 0;
+		}
+
+		if (0 != StartTsProxy(strAddress, strSessionId, GetDuration(), strProxyAddress))
 		{
 			strProxyAddress.clear();
 		}
@@ -211,6 +221,8 @@ int HlsVariant::Update()
 		return ret;
 	}
 
+	RecordCDNInfo(m_strSessionId, info.get<std::string>("cdnsip"), info.get<std::string>("cdncip"));
+
 	auto isMaster = info.get<int>("master");
 	if (isMaster)
 	{
@@ -324,7 +336,7 @@ int HlsVariant::InitPlay()
 		return -1;
 	}
 
-	m_segs[m_iCurrentSegIndex]->PreLoad();
+	m_segs[m_iCurrentSegIndex]->PreLoad(m_strSessionId);
 	m_timePointLastAccess = std::chrono::steady_clock::now();
 	return 0;
 }
@@ -379,6 +391,25 @@ int HlsVariant::GetCurrentSegmentNo(int64_t& segNo)
 	}
 
 	segNo = m_segs[m_iCurrentSegIndex]->GetNo();
+
+	return 0;
+}
+
+int HlsVariant::GetPreloadInfo(double& startTime, double& duration)
+{
+	if (m_iCurrentSegIndex < 0 || m_iCurrentSegIndex >= (int64_t)m_segs.size())
+	{
+		return -1;
+	}
+
+	duration = m_segs[m_iCurrentSegIndex]->GetDuration();
+	
+	double s = 0;
+	for (int64_t i = 0; i < m_iCurrentSegIndex; ++i)
+	{
+		s += m_segs[i]->GetDuration();
+	}
+	startTime = s;
 
 	return 0;
 }
@@ -454,7 +485,7 @@ int HlsVariant::Prepare()
 	if (index >= 0 && index < (int64_t)m_segs.size())
 	{
 		qDebug() << "download " << m_segs[index]->GetURL().c_str();
-		m_segs[index]->PreLoad(HlsSegment::PreloadType::Download);
+		m_segs[index]->PreLoad(m_strSessionId, HlsSegment::PreloadType::Download);
 	}
 	else
 	{
@@ -536,10 +567,12 @@ int HlsPlaylist::InitPlaylist(Dic dic)
 	Dic info;
 	std::string strHlsAddress;
 	std::string strDefaultVariant;
+	std::string strSessionId;
 	std::vector<Dic> items;
 
 	strHlsAddress = dic.get<std::string>("address");
 	strDefaultVariant = dic.get<std::string>("defaultVariant");
+	strSessionId = dic.get<std::string>("sessionId");
 
 	QTime t;
 	t.start();
@@ -549,6 +582,8 @@ int HlsPlaylist::InitPlaylist(Dic dic)
 	{
 		return ret;
 	}
+
+	RecordCDNInfo(strSessionId, info.get<std::string>("cdnsip"), info.get<std::string>("cdncip"));
 
 	auto isMaster = info.get<int>("master");
 	if (isMaster)
@@ -570,6 +605,11 @@ int HlsPlaylist::InitPlaylist(Dic dic)
 		pVariant->Append(segs);
 
 		m_variants.push_back(std::move(pVariant));
+	}
+
+	for (size_t i = 0; i < m_variants.size(); ++i)
+	{
+		m_variants[i]->m_strSessionId = strSessionId;
 	}
 
 	return InitDefaultVariant(std::move(strDefaultVariant));

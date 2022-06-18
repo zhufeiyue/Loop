@@ -22,7 +22,7 @@ public:
 	std::string GetURL() const;
 	PreloadType GetPreloadType() const { return preloadType; }
 
-	int PreLoad(PreloadType type = PreloadType::Forward);
+	int PreLoad(const std::string&, PreloadType type = PreloadType::Forward);
 	int UnLoad();
 
 private:
@@ -55,6 +55,8 @@ public:
 	int SwitchTo(int64_t);
 	int GetCurrentSegment(std::shared_ptr<HlsSegment>& pSeg, bool& isEndSeg);
 	int GetCurrentSegmentNo(int64_t&);
+	int GetPreloadInfo(double&, double&);
+
 	int64_t GetBandWidth() const;
 	int64_t GetTargetDuration() const;
 	int64_t GetVariantIndex() const;
@@ -71,6 +73,7 @@ private:
 private:
 	std::string m_strAddress;
 	std::string m_strResolution;
+	std::string m_strSessionId;
 	Type        m_variantType;
 	int64_t     m_bandWidth;
 	int64_t     m_targetDuration = 10;

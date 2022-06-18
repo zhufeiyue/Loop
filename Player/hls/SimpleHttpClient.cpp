@@ -59,6 +59,7 @@ QNetworkReply* HttpRequestManager::Get(QString url)
 	//req.setAttribute(QNetworkRequest::Http2AllowedAttribute, true);
 	req.setUrl(url);
 	//req.setRawHeader("Cache-Control", "no-cache");
+	req.setRawHeader("User-Agent", "PCCTV/5.1.1.0/Win7");
 
 	return m_netManager.get(req);
 }
@@ -89,6 +90,24 @@ HttpReply::HttpReply(QNetworkReply* pReplay,
 				dic.insert("httpCode", m_pReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt());
 				dic.insert("httpUrl", m_pReply->url().toString());
 				dic.insert("httpData", data);
+
+				QString cdnsip = "NV";
+				QString cdncip = "NV";
+				auto& headers = m_pReply->rawHeaderPairs();
+				for (int i = 0; i < headers.size(); ++i)
+				{
+					if (headers[i].first == "cdnsip")
+					{
+						cdnsip = headers[i].second.trimmed();
+ 					}
+					else if (headers[i].first == "cdncip")
+					{
+						cdncip = headers[i].second.trimmed();
+					}
+				}
+
+				dic.insert("cdnsip", cdnsip);
+				dic.insert("cdncip", cdncip);
 
 				m_dataCb(std::move(dic));
 			}

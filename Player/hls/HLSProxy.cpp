@@ -1,4 +1,5 @@
 #include "HLSProxy.h"
+#include "Monitor.h"
 
 #include <QApplication>
 #include <QTimer>
@@ -153,6 +154,7 @@ int HlsProxy::StartProxy(HlsProxyParam& param)
 	Dic dic;
 	dic.insert("address", param.strHlsAddress);
 	dic.insert("defaultVariant", param.strDefaultVariant);
+	dic.insert("sessionId", param.strSessionId);
 
 	m_strOriginM3U8Address = param.strHlsAddress;
 	m_pOriginPlaylist.reset(new HlsPlaylist());
@@ -170,9 +172,12 @@ int HlsProxy::StartProxy(HlsProxyParam& param)
 		{
 			param.variantDuration = pCurVariant->GetDuration();
 			param.variantIndex = pCurVariant->GetVariantIndex();
+			param.strMediaType = pCurVariant->GetType() == HlsVariant::Type::Vod ? "VOD" : "LIVE";
 		}
 
 		m_pOriginPlaylist->GetVariantInfoList(param.allVariantInfo);
+
+		GetCDNInfo(param.strSessionId, param.strCDNSip, param.strCDNCip);
 	}
 
 
@@ -277,11 +282,11 @@ int HlsProxy::GetContent(std::string& strContent)
 		<< " duration: " << duration
 		<< " target duration: " << pVariant->GetTargetDuration();
 
-	//duration -= 3;
-	//if (duration < 1)
-	//{
-	//	duration = 1;
-	//}
+	duration -= 3;
+	if (duration < 0.5)
+	{
+		duration = 0.5;
+	}
 
 	ss << "#EXTM3U\n";
 	ss << "#EXT-X-VERSION:7\n";
@@ -331,11 +336,45 @@ int HlsProxy::Seek(uint64_t pos, double& newStartPos)
 	return pVariant->Seek(pos, newStartPos);
 }
 
-int HlsProxy::HandleMonitor(HttpConnectionPtr conn, QMap<QString, QString>&)
+int HlsProxy::HandleMonitor(HttpConnectionPtr conn, QMap<QString, QString>& mapQuery)
 {
-	QJsonObject obj;
+	QString strSessionId = mapQuery["sessionId"];
 
+	std::string sip, cip;
+	GetCDNInfo(strSessionId.toStdString(), sip, cip);
+
+	QJsonObject obj;
 	obj["code"] = HlsProxyCode::OK;
+	obj["cdnsip"] = sip.c_str();
+	obj["cdncip"] = cip.c_str();
+
+	std::vector<TsDownloadRecord> items;
+	GetTsDownloadInfo(strSessionId.toStdString(), items);
+
+	QJsonArray a;
+	for (size_t i = 0; i < items.size(); ++i)
+	{
+		QJsonObject temp;
+		temp["originAddress"] = items[i].originAddress.c_str();
+		temp["tsSize"] = items[i].tsSize;
+		temp["tsDuration"] = items[i].tsDuration;
+		temp["tsDownloadTime"] = items[i].tsDownloadTime;
+
+		a.push_back(temp);
+	}
+	obj["tsDownload"] = a;
+
+	std::shared_ptr<HlsVariant> pVariant;
+	if (m_pOriginPlaylist)
+	{
+		double s(0), d(0);
+
+		m_pOriginPlaylist->GetCurrentVariant(pVariant);
+		if (pVariant && 0 == pVariant->GetPreloadInfo(s, d))
+		{
+			obj["preloadPos"] = s + d;
+		}
+	}
 
 	SendJson(conn, obj);
 
@@ -470,6 +509,7 @@ int HlsProxyManager::HandleStartPlayProxy(HttpConnectionPtr conn, QMap<QString, 
 	HlsProxyParam param;
 	param.strHlsAddress = strOriginAddress.toStdString();
 	param.strDefaultVariant = strDefaultVariant.toStdString();
+	param.strSessionId = strSessionId.toStdString();
 
 	auto pHlsProxy = new HlsProxy();
 	if (0 != pHlsProxy->StartProxy(param))
@@ -484,6 +524,9 @@ int HlsProxyManager::HandleStartPlayProxy(HttpConnectionPtr conn, QMap<QString, 
 		obj["proxyAddress"] = param.strProxyAddress.c_str();
 		obj["initVariantDuration"] = param.variantDuration;
 		obj["initVariantIndex"] = param.variantIndex;
+		obj["mediaType"] = param.strMediaType.c_str();
+		obj["cdnsip"] = param.strCDNSip.c_str();
+		obj["cdncip"] = param.strCDNCip.c_str();
 		QJsonArray avi;
 		for (size_t i = 0; i < param.allVariantInfo.size(); ++i)
 		{
@@ -506,6 +549,8 @@ int HlsProxyManager::HandleStartPlayProxy(HttpConnectionPtr conn, QMap<QString, 
 int HlsProxyManager::HandleStopPlayProxy(HttpConnectionPtr conn, QMap<QString, QString>& mapQuery)
 {
 	QString strSessionId = mapQuery["sessionId"];
+
+	ClearMonitorInfo(strSessionId.toStdString());
 
 	auto iter = m_mapProxy.find(strSessionId.toStdString());
 	if (iter == m_mapProxy.end())

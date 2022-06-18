@@ -7,6 +7,8 @@ class TsProxy : public QObject
 public:
 	TsProxy(std::string);
 	virtual~TsProxy();
+	void SetSessionId(std::string);
+	void SetTsDuration(double);
 	std::string GetProxyAddress() const;
 
 protected:
@@ -16,6 +18,8 @@ protected:
 	std::string m_strTsAddress;
 	std::string m_strTsProxyName;
 	std::string m_strTsProxyAddress;
+	std::string m_strSessionId;
+	double      m_dTsDuration;
 };
 
 class TsDownloadProxy : public TsProxy

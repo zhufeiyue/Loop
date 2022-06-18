@@ -350,7 +350,7 @@ again:
 	{
 		return -1;
 	}
-	auto& data = iterData->second.to<QByteArray>().toStdString();
+	auto data = iterData->second.to<QByteArray>().toStdString();
 	auto pParser = std::make_unique<M3U8Parser>(data);
 	if (!pParser->IsValid())
 	{
@@ -358,6 +358,8 @@ again:
 		return -1;
 	}
 
+	info.insert("cdnsip", responData.get<QString>("cdnsip"));
+	info.insert("cdncip", responData.get<QString>("cdncip"));
 	if (pParser->IsMaster())
 	{
 		info.insert("master", 1);

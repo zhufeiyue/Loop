@@ -1,16 +1,27 @@
 #include "TsProxy.h"
+#include "Dic.h"
+#include "Monitor.h"
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
-#include <QCryptographicHash>
+#include <QUrl>
 
 static std::map<std::string, TsProxy*> mapTsProxy;
 
-int StartTsProxy(const std::string& strOriginAddress, std::string& strProxyAddress)
+int StartTsProxy(
+	const std::string& strOriginAddress, 
+	const std::string& strSessionId,
+	double tsDuration,
+	std::string& strProxyAddress)
 {
-	//auto pTsProxy = new TsProxy(strOriginAddress);
-	//auto pTsProxy = new TsDownloadProxy(strOriginAddress);
-	auto pTsProxy = new TsDownloadStreamProxy(strOriginAddress);
+	TsProxy* pTsProxy = nullptr;
+	//pTsProxy = new TsProxy(strOriginAddress);
+	//pTsProxy = new TsDownloadProxy(strOriginAddress);
+	pTsProxy = new TsDownloadStreamProxy(strOriginAddress);
+
+	pTsProxy->SetSessionId(strSessionId);
+	pTsProxy->SetTsDuration(tsDuration);
+
 	strProxyAddress = pTsProxy->GetProxyAddress();
 	if (strProxyAddress.empty())
 	{
@@ -51,10 +62,14 @@ TsProxy::TsProxy(std::string strTsAddress)
 		return;
 	}
 
-	static int64_t segNo = 0;
-	QString strTemp = QString("/%1_%2.ts")
-		.arg(QString(QCryptographicHash::hash(QByteArray(strTsAddress.c_str(), strTsAddress.length()), QCryptographicHash::Md5).toHex()))
-		.arg(segNo++);
+	QString strTemp;
+	QUrl url(m_strTsAddress.c_str());
+	if (!url.isValid())
+	{
+		return;
+	}
+	strTemp = url.path();
+
 	m_strTsProxyName = strTemp.toStdString();
 	ret = pServer->RegisterRouter(m_strTsProxyName, [this](HttpConnectionPtr p)
 		{
@@ -81,6 +96,16 @@ TsProxy::~TsProxy()
 
 }
 
+void TsProxy::SetSessionId(std::string strSessionId)
+{
+	m_strSessionId = std::move(strSessionId);
+}
+
+void TsProxy::SetTsDuration(double d)
+{
+	m_dTsDuration = d;
+}
+
 std::string TsProxy::GetProxyAddress() const
 {
 	return m_strTsProxyAddress;
@@ -101,14 +126,14 @@ TsDownloadProxy::TsDownloadProxy(std::string s) : TsProxy(s)
 		return;
 	}
 
+	m_timeDownloadStart = std::chrono::steady_clock::now();
+
 	static HttpRequestManager manager;
-	m_pHttpDownloader = new HttpDownload(manager.Get(QString::fromStdString(s)), 
+	m_pHttpDownloader = new HttpDownload(manager.Get(QString::fromStdString(s)),
 		[this](QByteArray data, Dic dic){ return DownloadProgress(data, dic);},
 		[this](Dic dic) { DownloadFinish(dic); },
 		[this](Dic dic){ DownloadError(dic); }
 		);
-
-	m_timeDownloadStart = std::chrono::steady_clock::now();
 }
 
 TsDownloadProxy::~TsDownloadProxy()
@@ -128,7 +153,23 @@ int TsDownloadProxy::DownloadFinish(Dic&)
 	m_bDownloadFinish = true;
 
 	auto now = std::chrono::steady_clock::now();
-	qDebug() << "download finish " << std::chrono::duration_cast<std::chrono::milliseconds>(now - m_timeDownloadStart).count();
+	auto downloadTime = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_timeDownloadStart).count();
+	auto n = m_dTsDuration * 1000 / downloadTime;
+	qDebug() << "download finish: "
+		<< "ts size " << m_data.size()
+		<< "ts duration " << m_dTsDuration * 1000
+		<< "download time " << downloadTime << "ms "
+		<< n;
+
+	TsDownloadRecord record;
+	record.originAddress = m_strTsAddress;
+	record.proxyAddress = m_strTsProxyAddress;
+	record.tsDuration = m_dTsDuration * 1000;
+	record.tsSize = m_data.size();
+	record.tsDownloadTime = downloadTime;
+
+	RecordTsDownloadInfo(m_strSessionId, record);
+
 	return 0;
 }
 
@@ -200,6 +241,7 @@ int TsDownloadStreamProxy::HandleTsRequest(HttpConnectionPtr p)
 
 	if (m_bDownloadFinish)
 	{
+		p->SetResponHeader("Content-Type", "video/mp2t");
 		p->Send(m_data);
 	}
 	else

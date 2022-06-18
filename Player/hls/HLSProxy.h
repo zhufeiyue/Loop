@@ -21,6 +21,10 @@ struct HlsProxyParam
 {
 	std::string strHlsAddress;
 	std::string strDefaultVariant;
+	std::string strSessionId;
+	std::string strMediaType;
+	std::string strCDNSip;
+	std::string strCDNCip;
 	std::string strProxyAddress;
 	double  variantDuration;
 	int64_t variantIndex;
