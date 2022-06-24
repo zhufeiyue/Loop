@@ -74,6 +74,7 @@ private:
 	std::string m_strAddress;
 	std::string m_strResolution;
 	std::string m_strSessionId;
+	std::string m_strErrorMessage;
 	Type        m_variantType;
 	int64_t     m_bandWidth;
 	int64_t     m_targetDuration = 10;
@@ -81,6 +82,7 @@ private:
 	int64_t     m_iVariantIndex = -1;
 
 	std::chrono::steady_clock::time_point    m_timePointLastAccess;
+	std::chrono::steady_clock::time_point    m_timePointLastSeek;
 	std::vector<std::shared_ptr<HlsSegment>> m_segs;
 };
 
@@ -92,10 +94,15 @@ public:
 	int GetCurrentVariant(std::shared_ptr<HlsVariant>& pVariant);
 	int GetVariantInfoList(std::vector<Dic>&);
 
+	std::string ErrorMessage() {
+		return m_strErrorMessage;
+	}
+
 protected:
 	int InitDefaultVariant(std::string);
 
 private:
 	std::vector<std::shared_ptr<HlsVariant>> m_variants;
 	std::shared_ptr<HlsVariant>              m_pCurrentVariant;
+	std::string                              m_strErrorMessage;
 };

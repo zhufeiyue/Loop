@@ -26,6 +26,7 @@ struct HlsProxyParam
 	std::string strCDNSip;
 	std::string strCDNCip;
 	std::string strProxyAddress;
+	std::string strErrorMessage;
 	double  variantDuration;
 	int64_t variantIndex;
 	

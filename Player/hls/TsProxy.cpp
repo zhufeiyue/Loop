@@ -126,6 +126,7 @@ TsDownloadProxy::TsDownloadProxy(std::string s) : TsProxy(s)
 		return;
 	}
 
+	qDebug() << "download " << s.c_str() << " --> " << m_strTsProxyAddress.c_str();
 	m_timeDownloadStart = std::chrono::steady_clock::now();
 
 	static HttpRequestManager manager;
@@ -155,11 +156,12 @@ int TsDownloadProxy::DownloadFinish(Dic&)
 	auto now = std::chrono::steady_clock::now();
 	auto downloadTime = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_timeDownloadStart).count();
 	auto n = m_dTsDuration * 1000 / downloadTime;
-	qDebug() << "download finish: "
+	qDebug() << "download finish:"
 		<< "ts size " << m_data.size()
 		<< "ts duration " << m_dTsDuration * 1000
-		<< "download time " << downloadTime << "ms "
-		<< n;
+		<< "download time " << downloadTime
+		<< n
+		<< m_strTsAddress.c_str();
 
 	TsDownloadRecord record;
 	record.originAddress = m_strTsAddress;

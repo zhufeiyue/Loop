@@ -325,15 +325,17 @@ int ParseM3U8(std::string strPlaylistUrl, Dic& info, std::vector<Dic>& items)
 
 	qDebug() << "parse m3u8 " << strPlaylistUrl.c_str();
 again:
-	SimpleGet(QString::fromStdString(strPlaylistUrl), responData, 2000);
+	SimpleGet(QString::fromStdString(strPlaylistUrl), responData, 1500);
 
 	auto code = responData.get<int>("code");
+	auto strMessage = responData.get<std::string>("message");
 	if (code != 0)
 	{
-		std::string strMessage = responData.get<std::string>("message");
 		qDebug() << strMessage.c_str();
 		if (retry++ < 3)
 			goto again;
+
+		info.insert("message", strMessage);
 		return -1;
 	}
 
@@ -341,25 +343,30 @@ again:
 	auto trueUrl = responData.get<std::string>("httpUrl");
 	if (httpStatusCode != 200)
 	{
-		qDebug() << httpStatusCode;
+		strMessage = "http respon code " + std::to_string(httpStatusCode);
+		info.insert("message", strMessage);
 		return -1;
 	}
 
 	auto iterData = responData.find("httpData");
 	if (iterData == responData.end())
 	{
+		strMessage = "no m3u8 data";
+		info.insert("message", strMessage);
 		return -1;
 	}
 	auto data = iterData->second.to<QByteArray>().toStdString();
 	auto pParser = std::make_unique<M3U8Parser>(data);
 	if (!pParser->IsValid())
 	{
-		qDebug() << "invalid m3u8";
+		strMessage = "invalid m3u8";
+		info.insert("message", strMessage);
 		return -1;
 	}
 
 	info.insert("cdnsip", responData.get<QString>("cdnsip"));
 	info.insert("cdncip", responData.get<QString>("cdncip"));
+	info.insert("message", strMessage);
 	if (pParser->IsMaster())
 	{
 		info.insert("master", 1);
@@ -376,7 +383,8 @@ again:
 
 	if (0 != FormatSubAddress(items, trueUrl))
 	{
-		qDebug() << "FormatSubAddress error";
+		strMessage = "FormatSubAddress error";
+		info.insert("message", strMessage);
 		return -1;
 	}
 

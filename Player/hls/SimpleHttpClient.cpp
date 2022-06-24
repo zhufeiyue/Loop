@@ -41,6 +41,13 @@ void testHttpClient(int argc, char* argv[])
 	app.exec();
 }
 
+QString strGlobalClientSid;
+int RecordClientSid(QString s)
+{
+	strGlobalClientSid = s;
+	return 0;
+}
+
 HttpRequestManager::HttpRequestManager()
 {
 	qDebug() << __FUNCTION__;
@@ -60,6 +67,8 @@ QNetworkReply* HttpRequestManager::Get(QString url)
 	req.setUrl(url);
 	//req.setRawHeader("Cache-Control", "no-cache");
 	req.setRawHeader("User-Agent", "PCCTV/5.1.1.0/Win7");
+	if(!strGlobalClientSid.isEmpty())
+		req.setRawHeader("clientsid", strGlobalClientSid.toUtf8());
 
 	return m_netManager.get(req);
 }
@@ -194,7 +203,7 @@ int SimpleGet(QString url, Dic& result, int timeout)
 				bValid->store(false);
 
 				dic.insert("code", 1);
-				dic.insert("message", "http request error: " + dic.get<std::string>("errorMessage"));
+				dic.insert("message", "http_request_error_" + dic.get<std::string>("errorMessage"));
 				result = std::move(dic);
 
 				try

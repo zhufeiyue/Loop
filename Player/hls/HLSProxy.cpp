@@ -85,6 +85,8 @@ int GetServer(std::shared_ptr<SimpleHttpServer>& got)
 	return 0;
 }
 
+int RecordClientSid(QString);
+
 static int SendJson(HttpConnectionPtr conn, QJsonObject jsonRespon)
 {
 	auto strRespon =  QJsonDocument(jsonRespon).toJson(QJsonDocument::Compact);
@@ -161,6 +163,7 @@ int HlsProxy::StartProxy(HlsProxyParam& param)
 	ret = m_pOriginPlaylist->InitPlaylist(dic);
 	if (0 != ret)
 	{
+		param.strErrorMessage = m_pOriginPlaylist->ErrorMessage();
 		return ret;
 	}
 
@@ -280,7 +283,8 @@ int HlsProxy::GetContent(std::string& strContent)
 	duration = pSeg->GetDuration();
 	qDebug() << "respon seg no: " << pSeg->GetNo()
 		<< " duration: " << duration
-		<< " target duration: " << pVariant->GetTargetDuration();
+		<< " target duration: " << pVariant->GetTargetDuration()
+		<< " address: " << pSeg->GetURL().c_str();
 
 	duration -= 3;
 	if (duration < 0.5)
@@ -305,7 +309,7 @@ int HlsProxy::GetContent(std::string& strContent)
 	m_strLastResponCntent = strContent;
 
 End:
-	QTimer::singleShot(0, [pVariant]()
+	QTimer::singleShot(20, [pVariant]()
 		{
 			if (pVariant)
 			{
@@ -452,6 +456,10 @@ int HlsProxyManager::Start()
 			memcpy(sm_port.data(), &port, sizeof(port));
 			sm_port.unlock();
 		}
+		else
+		{
+			return -1;
+		}
 	}
 
 
@@ -493,6 +501,7 @@ int HlsProxyManager::HandleStartPlayProxy(HttpConnectionPtr conn, QMap<QString, 
 	QString strOriginAddress = mapQuery["originAddress"];
 	QString strSessionId = mapQuery["sessionId"];
 	QString strDefaultVariant = mapQuery["defaultVariant"];
+	QString strClientSid = mapQuery["clientSid"];
 
 	if (strOriginAddress.isEmpty() || strSessionId.isEmpty())
 	{
@@ -506,6 +515,8 @@ int HlsProxyManager::HandleStartPlayProxy(HttpConnectionPtr conn, QMap<QString, 
 		return 0;
 	}
 
+	RecordClientSid(strClientSid);
+
 	HlsProxyParam param;
 	param.strHlsAddress = strOriginAddress.toStdString();
 	param.strDefaultVariant = strDefaultVariant.toStdString();
@@ -515,7 +526,7 @@ int HlsProxyManager::HandleStartPlayProxy(HttpConnectionPtr conn, QMap<QString, 
 	if (0 != pHlsProxy->StartProxy(param))
 	{
 		obj["code"] = HlsProxyCode::StartProxyError;
-		obj["message"] = "start proxy fail";
+		obj["message"] = QString::fromStdString(param.strErrorMessage);
 
 		delete pHlsProxy;
 	}

@@ -117,6 +117,9 @@ int HlsSegment::UnLoad()
 			strProxyAddress.clear();
 		}
 	}
+
+	preloadType = PreloadType::Unknown;
+
 	return 0;
 }
 
@@ -129,6 +132,7 @@ HlsVariant::HlsVariant(Dic& dic)
 	m_strAddress = dic.get<std::string>("address");
 	m_strResolution = dic.get<std::string>("resolution");
 	m_timePointLastAccess = std::chrono::steady_clock::now();
+	m_timePointLastSeek = m_timePointLastAccess;
 }
 
 HlsVariant::~HlsVariant()
@@ -212,12 +216,10 @@ int HlsVariant::Update()
 	std::vector<Dic> items;
 	int ret;
 
-	QTime t;
-	t.start();
 	ret = ParseM3U8(m_strAddress, info, items);
-	qDebug() << "parse m3u8 use " << t.elapsed();
 	if (ret != 0)
 	{
+		m_strErrorMessage = info.get<std::string>("message");
 		return ret;
 	}
 
@@ -226,7 +228,8 @@ int HlsVariant::Update()
 	auto isMaster = info.get<int>("master");
 	if (isMaster)
 	{
-		qDebug() << "shouldn't be master m3u8";
+		m_strErrorMessage = "shouldn't be master m3u8";
+		qDebug() << m_strErrorMessage.c_str();
 		return -1;
 	}
 
@@ -247,12 +250,16 @@ int HlsVariant::Update()
 
 	return 0;
 }
-
+ 
 int HlsVariant::Seek(uint64_t pos, double& newStartPos)
 {
+	if (GetType() != Type::Vod)
+	{
+		return -1;
+	}
+
 	// pos µ¥Î»ºÁÃë
 	auto duration = GetDuration();
-
 	auto seekPos = static_cast<double>(pos) / 1000;
 	if (pos < 0 || seekPos >= duration)
 	{
@@ -264,6 +271,7 @@ int HlsVariant::Seek(uint64_t pos, double& newStartPos)
 	{
 		if (seekPos >= startTime && seekPos < startTime + m_segs[i]->GetDuration())
 		{
+			m_timePointLastSeek = std::chrono::steady_clock::now();
 			m_iCurrentSegIndex = (int64_t)i;
 			newStartPos = startTime;
 			return 0;
@@ -314,6 +322,7 @@ int HlsVariant::InitPlay()
 		qDebug() << "cann't init play for this variant. type: "
 			<< HlsVariantType2String(type).c_str()
 			<< "; segment number: " << m_segs.size();
+		m_strErrorMessage = "m3u8 type is unknown";
 		return -1;
 	}
 
@@ -348,7 +357,7 @@ int HlsVariant::GetCurrentSegment(std::shared_ptr<HlsSegment>& pSeg, bool& isEnd
 	qDebug() << "m3u8 request interval " << std::chrono::duration_cast<std::chrono::milliseconds>(interval).count();
 	m_timePointLastAccess = now;
 
-	if (m_variantType == Type::Live)
+	if (GetType() == Type::Live)
 	{
 		if (interval > std::chrono::seconds(60))
 		{
@@ -484,12 +493,21 @@ int HlsVariant::Prepare()
 	index = m_iCurrentSegIndex;
 	if (index >= 0 && index < (int64_t)m_segs.size())
 	{
-		qDebug() << "download " << m_segs[index]->GetURL().c_str();
-		m_segs[index]->PreLoad(m_strSessionId, HlsSegment::PreloadType::Download);
+		HlsSegment::PreloadType preloadType = HlsSegment::PreloadType::Download;
+		if (GetType() == Type::Vod)
+		{
+			auto now = std::chrono::steady_clock::now();
+			if (now - m_timePointLastSeek <= std::chrono::seconds(10))
+			{
+				preloadType = HlsSegment::PreloadType::Forward;
+			}
+		}
+
+		m_segs[index]->PreLoad(m_strSessionId, preloadType);
 	}
 	else
 	{
-		qDebug() << "dont know what to download";
+		qDebug() << "dont know what to prepare";
 	}
 
 	return 0;
@@ -574,12 +592,13 @@ int HlsPlaylist::InitPlaylist(Dic dic)
 	strDefaultVariant = dic.get<std::string>("defaultVariant");
 	strSessionId = dic.get<std::string>("sessionId");
 
-	QTime t;
-	t.start();
 	ret = ParseM3U8(strHlsAddress, info, items);
-	qDebug() << "parse m3u8 use " << t.elapsed();
 	if (ret != 0)
 	{
+		std::string strMessage = info.get<std::string>("message");
+		qDebug() << strMessage.c_str();
+
+		m_strErrorMessage = std::move(strMessage);
 		return ret;
 	}
 
@@ -615,56 +634,45 @@ int HlsPlaylist::InitPlaylist(Dic dic)
 	return InitDefaultVariant(std::move(strDefaultVariant));
 }
 
-int HlsPlaylist::InitDefaultVariant( std::string strDefaultVariant)
+int HlsPlaylist::InitDefaultVariant(std::string strDefaultVariant)
 {
-	if (m_variants.empty())
-	{
-		qDebug() << "no variant";
-		return -1;
-	}
-
-	m_pCurrentVariant.reset();
-	if (strDefaultVariant.empty())
+	// by bandwidth
+	int bitrate = atoi(strDefaultVariant.c_str());
+	if (bitrate == 0)
 	{
 		if (!m_variants.empty())
-		{
-			m_pCurrentVariant = m_variants.front();
-		}
+			bitrate = (int)m_variants.back()->GetBandWidth();
 	}
-	else
-	{
-		// by bandwidth
-		int bitrate = atoi(strDefaultVariant.c_str());
-		std::sort(m_variants.begin(), m_variants.end(), 
-			[](std::shared_ptr<HlsVariant>& l, std::shared_ptr<HlsVariant>& r) 
+
+	std::sort(m_variants.begin(), m_variants.end(),
+		[](std::shared_ptr<HlsVariant>& l, std::shared_ptr<HlsVariant>& r)
+		{
+			return l->GetBandWidth() < r->GetBandWidth();
+		});
+
+	auto iter = std::min_element(m_variants.begin(), m_variants.end(),
+		[bitrate](std::shared_ptr<HlsVariant>& l, std::shared_ptr<HlsVariant>& r)
+		{
+			auto n1 = std::abs(l->GetBandWidth() - bitrate);
+			auto n2 = std::abs(r->GetBandWidth() - bitrate);
+
+			if (n1 < n2)
+			{
+				return true;
+			}
+			else if (n1 == n2)
 			{
 				return l->GetBandWidth() < r->GetBandWidth();
-			});
-
-		auto iter = std::min_element(m_variants.begin(), m_variants.end(), 
-			[bitrate](std::shared_ptr<HlsVariant>& l, std::shared_ptr<HlsVariant>& r)
+			}
+			else
 			{
-				auto n1 = std::abs(l->GetBandWidth() - bitrate);
-				auto n2 = std::abs(r->GetBandWidth() - bitrate);
+				return false;
+			}
+		});
 
-				if (n1 < n2)
-				{
-					return true;
-				}
-				else if (n1 == n2)
-				{
-					return l->GetBandWidth() < r->GetBandWidth();
-				}
-				else
-				{
-					return false;
-				}
-			});
-
-		if (iter != m_variants.end())
-		{
-			m_pCurrentVariant = *iter;
-		}
+	if (iter != m_variants.end())
+	{
+		m_pCurrentVariant = *iter;
 	}
 
 	for (size_t i = 0; i < m_variants.size(); ++i)
@@ -672,8 +680,14 @@ int HlsPlaylist::InitDefaultVariant( std::string strDefaultVariant)
 		m_variants[i]->m_iVariantIndex = (int64_t)i;
 	}
 
+	int ret = -1;
 	if (m_pCurrentVariant)
-		return m_pCurrentVariant->InitPlay();
-	else
-		return -1;
+	{
+		ret = m_pCurrentVariant->InitPlay();
+		if (ret != 0)
+		{
+			m_strErrorMessage = m_pCurrentVariant->m_strErrorMessage;
+		}
+	}
+	return ret;
 }
