@@ -5,6 +5,7 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QUrl>
+#include <QDateTime>
 
 static std::map<std::string, TsProxy*> mapTsProxy;
 
@@ -149,9 +150,25 @@ TsDownloadProxy::~TsDownloadProxy()
 	}
 }
 
-int TsDownloadProxy::DownloadFinish(Dic&)
+int TsDownloadProxy::DownloadFinish(Dic& dic)
 {
 	m_bDownloadFinish = true;
+	if (m_bDownloadError)
+	{
+		HttpRequestErrorInfo info;
+		info.strErrorMsaage = m_strErrorMsg;
+		info.strTime = QDateTime::currentDateTime().toString("yyyy.MM.dd hh:mm:ss").toStdString();
+		info.strUrl = dic.get<std::string>("httpUrl");
+		info.httpResponCode = dic.get<int>("httpCode");
+		if (m_data.size() < 1024)
+		{
+			info.strHttpResponData = m_data.toStdString();
+		}
+
+		RecordHttpRequestErrorInfo(m_strSessionId, info);
+
+		return 0;
+	}
 
 	auto now = std::chrono::steady_clock::now();
 	auto downloadTime = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_timeDownloadStart).count();
@@ -177,18 +194,13 @@ int TsDownloadProxy::DownloadFinish(Dic&)
 
 int TsDownloadProxy::DownloadError(Dic& dic)
 {
-	m_iTotalSize = -1;
-	m_data = QByteArray();
+	m_bDownloadError = true;
+	m_strErrorMsg = dic.get<std::string>("errorMessage");
 	return 0;
 }
 
 int TsDownloadProxy::DownloadProgress(QByteArray& data, Dic& dic)
 {
-	if (dic.get<int>("httpCode") != 200)
-	{
-		return -1;
-	}
-
 	m_data.append(data);
 	m_iTotalSize = dic.get<int64_t>("totalSize");
 	return 0;
@@ -196,7 +208,7 @@ int TsDownloadProxy::DownloadProgress(QByteArray& data, Dic& dic)
 
 int TsDownloadProxy::HandleTsRequest(HttpConnectionPtr pConn)
 {
-	if (m_iTotalSize < 0)
+	if (m_bDownloadError)
 	{
 		if (m_pHttpDownloader)
 		{
@@ -235,7 +247,12 @@ int TsDownloadStreamProxy::HandleTsRequest(HttpConnectionPtr p)
 {
 	qDebug() << "request " << m_strTsProxyAddress.c_str();
 
-	if (m_iTotalSize < 0)
+	if (m_bDownloadError)
+	{
+		return TsDownloadProxy::HandleTsRequest(p);
+	}
+
+	if (m_iTotalSize <= 0)
 	{
 		qDebug() << "dont know ts size . yet";
 		return TsDownloadProxy::HandleTsRequest(p);
@@ -274,14 +291,16 @@ int TsDownloadStreamProxy::DownloadError(Dic& dic)
 	{
 		m_conns[i]->Terminate();
 	}
-
 	m_conns.clear();
+
 	return TsDownloadProxy::DownloadError(dic);
 }
 
 int TsDownloadStreamProxy::DownloadProgress(QByteArray& data, Dic& dic)
 {
-	if (0 != TsDownloadProxy::DownloadProgress(data, dic))
+	TsDownloadProxy::DownloadProgress(data, dic);
+
+	if (m_bDownloadError)
 	{
 		return -1;
 	}

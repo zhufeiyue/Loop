@@ -8,6 +8,7 @@ struct CDNInfo
 
 static std::map<std::string, CDNInfo>                       mapCDNInfo;
 static std::map<std::string, std::vector<TsDownloadRecord>> mapTsDownloadInfo;
+static std::map<std::string, std::vector<HttpRequestErrorInfo>> mapHttpErrorInfo;
 
 int RecordCDNInfo(
 	const std::string& strSession,
@@ -58,10 +59,27 @@ int GetTsDownloadInfo(
 	return 0;
 }
 
+
+int RecordHttpRequestErrorInfo(
+	const std::string& strSession,
+	HttpRequestErrorInfo& record)
+{
+	mapHttpErrorInfo[strSession].push_back(std::move(record));
+	return 0;
+}
+int GetHttpRequestErrorInfo(
+	const std::string& strSession,
+	std::vector<HttpRequestErrorInfo>& v)
+{
+	v = std::move(mapHttpErrorInfo[strSession]);
+	return 0;
+}
+
 int ClearMonitorInfo(const std::string& strSession)
 {
 	mapCDNInfo.erase(strSession);
 	mapTsDownloadInfo.erase(strSession);
+	mapHttpErrorInfo.erase(strSession);
 
 	return 0;
 }

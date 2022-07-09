@@ -62,11 +62,25 @@ static int OnParserStatus(http_parser* pParser, const char* at, size_t len)
 
 static int OnHeaderField(http_parser* pParser, const char* at, size_t len)
 {
+	auto pHandler = (HttpConnection*)pParser->data;
+	if (pHandler)
+	{
+		pHandler->m_vRequestHeader.push_back(std::make_pair(std::string(at, len), std::string()));
+	}
+
 	return 0;
 }
 
 static int OnHeaderValue(http_parser* pParser, const char* at, size_t len)
 {
+	auto pHandler = (HttpConnection*)pParser->data;
+	if (pHandler)
+	{
+		if (!pHandler->m_vRequestHeader.empty())
+		{
+			pHandler->m_vRequestHeader.back().second = std::string(at, len);
+		}
+	}
 	return 0;
 }
 

@@ -286,7 +286,7 @@ int testQmlPlayer(int argc, char* argv[])
 		pFile = "D:/迅雷下载/1/阳光电影www.ygdy8.com.007：无暇赴死.2021.BD.1080P.国英双语双字.mkv";
 		pFile = "http://112.74.200.9:88/tv000000/m3u8.php?/migu/627198191";
 		pFile = "http://112.74.200.9:88/tv000000/m3u8.php?/migu/625204865";
-		//pFile = "http://127.0.0.1:8000/1.m3u8";
+		//pFile = "http://112.51.31.67:22080/hls/live/bosma-C1-2k/index.m3u8";
 	}
 
 	Player* player = nullptr;

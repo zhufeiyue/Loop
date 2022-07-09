@@ -28,7 +28,9 @@ struct HlsProxyParam
 	std::string strProxyAddress;
 	std::string strErrorMessage;
 	double  variantDuration;
+	double  variantStartTime;
 	int64_t variantIndex;
+	int64_t beginTime;
 	
 	std::vector<Dic> allVariantInfo;
 };
@@ -40,6 +42,7 @@ public:
 	virtual~HlsProxy();
 	virtual int StartProxy(HlsProxyParam&);
 	virtual int StopProxy();
+	virtual int PauseProxy(bool);
 
 private:
 	int GetContent(std::string&);
@@ -58,6 +61,8 @@ private:
 	std::string m_strProxyName;
 	std::string m_strLastResponCntent;
 	int64_t     m_iProxySegNo = 0;
+
+	bool        m_bPauseProxy = false;
 };
 
 class HlsProxyManager
@@ -71,6 +76,7 @@ public:
 private:
 	int HandleStartPlayProxy(HttpConnectionPtr conn, QMap<QString, QString>&);
 	int HandleStopPlayProxy(HttpConnectionPtr conn, QMap<QString, QString>&);
+	int HandlePausePlayProxy(HttpConnectionPtr conn, QMap<QString, QString>&);
 
 private:
 	std::map<std::string, HlsProxy*> m_mapProxy;

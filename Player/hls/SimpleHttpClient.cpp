@@ -1,4 +1,5 @@
 #include "SimpleHttpClient.h"
+#include "TsProxy.h"
 #include "qloop.h"
 
 #include <QApplication>
@@ -18,7 +19,7 @@ void testHttpClient(int argc, char* argv[])
 	}
 
 	HttpRequestManager manager;
-	if (true)
+	if (false)
 	{
 		auto pHttpDownload = new HttpDownload(
 			//manager.Get("https://cdnhp17.yesky.com/629ef530/8460dd4a62622009bb10a38e833cf99b/newsoft/QQGame_5.19.57014.0_0_0_1080000167_0.exe"),
@@ -30,7 +31,7 @@ void testHttpClient(int argc, char* argv[])
 			},
 			[](Dic dic) 
 			{
-				//qDebug() << dic.get<int>("httpCode");
+				qDebug() << dic.get<int>("httpCode");
 			},
 			[](Dic dic) 
 			{
@@ -38,10 +39,16 @@ void testHttpClient(int argc, char* argv[])
 			});
 	}
 
+	if (true)
+	{
+		//auto p = new TsDownloadStreamProxy("http://127.0.0.1/1.txt");
+		auto p1 = new TsDownloadStreamProxy("https://www.csdn1.net/");
+	}
+
 	app.exec();
 }
 
-QString strGlobalClientSid;
+static QString strGlobalClientSid;
 int RecordClientSid(QString s)
 {
 	strGlobalClientSid = s;

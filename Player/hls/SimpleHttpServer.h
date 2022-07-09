@@ -82,6 +82,7 @@ public:
 	std::string m_strQuery;
 	bool m_bRequestHeaderDone = false;
 	bool m_bRequestDone       = false;
+	std::vector<std::pair<std::string, std::string>> m_vRequestHeader;
 };
 
 typedef std::shared_ptr<HttpConnection> HttpConnectionPtr;

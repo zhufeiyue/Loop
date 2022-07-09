@@ -23,7 +23,6 @@ struct TsDownloadRecord
 	double      tsDownloadTime;
 	int64_t     recordTime;
 };
-
 int RecordTsDownloadInfo(
 	const std::string&,
 	TsDownloadRecord&
@@ -31,6 +30,23 @@ int RecordTsDownloadInfo(
 int GetTsDownloadInfo(
 	const std::string&,
 	std::vector<TsDownloadRecord>&
+);
+
+struct HttpRequestErrorInfo
+{
+	std::string strUrl;
+	std::string strTime;
+	std::string strErrorMsaage;
+	std::string strHttpResponData;
+	int httpResponCode;
+};
+int RecordHttpRequestErrorInfo(
+	const std::string&,
+	HttpRequestErrorInfo&
+);
+int GetHttpRequestErrorInfo(
+	const std::string&,
+	std::vector<HttpRequestErrorInfo>&
 );
 
 int ClearMonitorInfo(const std::string&);

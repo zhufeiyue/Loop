@@ -37,8 +37,10 @@ protected:
 
 protected:
 	HttpDownload* m_pHttpDownloader = nullptr;
+	std::string   m_strErrorMsg;
 	int64_t    m_iTotalSize = 0;
 	bool       m_bDownloadFinish = false;
+	bool       m_bDownloadError = false;
 	QByteArray m_data;
 
 	std::chrono::steady_clock::time_point m_timeDownloadStart;
