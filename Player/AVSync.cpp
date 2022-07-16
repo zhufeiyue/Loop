@@ -270,8 +270,8 @@ again:
 				}
 
 				m_iSyncInterval -= 100;
-				if (m_iSyncInterval < 200)
-					m_iSyncInterval = 200;
+				if (m_iSyncInterval < 100)
+					m_iSyncInterval = 100;
 			}
 			else if (videoPts > audioPts + m_iUpdateInterval)
 			{

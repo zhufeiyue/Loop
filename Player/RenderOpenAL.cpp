@@ -418,9 +418,14 @@ int AudioDataCacheConvert::Convert(std::vector<FrameHolderPtr>& frames, int& out
 	int64_t outPts;
 	AVFrame* pFrame;
 
+	outSampleCount = 0;
+	if (!m_pFrame)
+	{
+		return CodeNo;
+	}
+
 	if (frames.empty())
 	{
-		outSampleCount = 0;
 		return CodeOK;
 	}
 
@@ -436,12 +441,15 @@ int AudioDataCacheConvert::Convert(std::vector<FrameHolderPtr>& frames, int& out
 		pBiggerFrame->channel_layout = m_pFrame->channel_layout;
 		pBiggerFrame->sample_rate = m_pFrame->sample_rate;
 		pBiggerFrame->nb_samples = sampleCount;
-		av_frame_get_buffer(pBiggerFrame, 0);
 
-		if (m_pFrame)
+		ret = av_frame_get_buffer(pBiggerFrame, 0);
+		if (0 != ret)
 		{
-			av_frame_free(&m_pFrame);
+			PrintFFmpegError(ret, "av_frame_get_buffer");
+			return CodeNo;
 		}
+
+		av_frame_free(&m_pFrame);
 		m_pFrame = pBiggerFrame;
 	}
 
