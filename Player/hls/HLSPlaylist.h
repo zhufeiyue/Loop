@@ -64,7 +64,7 @@ public:
 	std::string GetResolution() const;
 	std::string GetAddress() const;
 
-	int Prepare();
+	int Prepare(HlsSegment::PreloadType type);
 
 private:
 	int InitPlay();

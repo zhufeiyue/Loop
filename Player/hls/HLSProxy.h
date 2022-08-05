@@ -2,6 +2,7 @@
 #include "HLSPlaylist.h"
 #include "SimpleHttpServer.h"
 #include <QMap>
+#include <QTimer>
 
 void testHlsProxy(int argc, char* argv[]);
 int GetServer(std::shared_ptr<SimpleHttpServer>&);
@@ -42,7 +43,16 @@ public:
 	virtual~HlsProxy();
 	virtual int StartProxy(HlsProxyParam&);
 	virtual int StopProxy();
-	virtual int PauseProxy(bool);
+
+	void MarkStop() { 
+		m_bMarkStop = true; 
+	}
+	bool IsMarkedStop() const { 
+		return m_bMarkStop; 
+	}
+	std::chrono::time_point<std::chrono::steady_clock> LastActivityTime() const {
+		return m_timepointLastActivity;
+	}
 
 private:
 	int GetContent(std::string&);
@@ -61,8 +71,8 @@ private:
 	std::string m_strProxyName;
 	std::string m_strLastResponCntent;
 	int64_t     m_iProxySegNo = 0;
-
-	bool        m_bPauseProxy = false;
+	bool        m_bMarkStop = false;
+	std::chrono::time_point<std::chrono::steady_clock> m_timepointLastActivity;
 };
 
 class HlsProxyManager
@@ -76,8 +86,9 @@ public:
 private:
 	int HandleStartPlayProxy(HttpConnectionPtr conn, QMap<QString, QString>&);
 	int HandleStopPlayProxy(HttpConnectionPtr conn, QMap<QString, QString>&);
-	int HandlePausePlayProxy(HttpConnectionPtr conn, QMap<QString, QString>&);
+	int ClearUnusedPlayProxy();
 
 private:
 	std::map<std::string, HlsProxy*> m_mapProxy;
+	QTimer*                          m_pClearTimer = nullptr;
 };

@@ -69,7 +69,12 @@ HttpRequestManager::~HttpRequestManager()
 QNetworkReply* HttpRequestManager::Get(QString url)
 {
 	QNetworkRequest req;
+
+	auto sslConfig = req.sslConfiguration();
+	sslConfig.setPeerVerifyMode(QSslSocket::PeerVerifyMode::VerifyNone);
+	req.setSslConfiguration(sslConfig);
 	req.setAttribute(QNetworkRequest::FollowRedirectsAttribute, true);
+	
 	//req.setAttribute(QNetworkRequest::Http2AllowedAttribute, true);
 	req.setUrl(url);
 	//req.setRawHeader("Cache-Control", "no-cache");
@@ -132,7 +137,9 @@ HttpReply::HttpReply(QNetworkReply* pReplay,
 	QObject::connect(m_pReply, QOverload<QNetworkReply::NetworkError>::of(&QNetworkReply::error),
 		this, [this](QNetworkReply::NetworkError e)
 		{
+#ifdef _DEBUG
 			qDebug() << m_pReply->errorString();
+#endif
 
 			if (m_errorCb)
 			{

@@ -464,7 +464,7 @@ std::string HlsVariant::GetAddress() const
 	return m_strAddress;
 }
 
-int HlsVariant::Prepare()
+int HlsVariant::Prepare(HlsSegment::PreloadType type)
 {
 	int64_t index = m_iCurrentSegIndex - 3;
 	for (int64_t i = 0; i < m_iCurrentSegIndex - 5; ++i)
@@ -493,7 +493,7 @@ int HlsVariant::Prepare()
 	index = m_iCurrentSegIndex;
 	if (index >= 0 && index < (int64_t)m_segs.size())
 	{
-		HlsSegment::PreloadType preloadType = HlsSegment::PreloadType::Download;
+		HlsSegment::PreloadType preloadType = type;
 		if (GetType() == Type::Vod)
 		{
 			auto now = std::chrono::steady_clock::now();

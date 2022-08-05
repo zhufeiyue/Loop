@@ -196,15 +196,17 @@ int HlsProxy::StartProxy(HlsProxyParam& param)
 
 
 	m_iProxySegNo = 0;
-	m_strProxyName = "/" + std::to_string(CreateRandomNumber()) + ".m3u8";
+	m_timepointLastActivity = std::chrono::steady_clock::now();
+	m_strProxyName = "/" + param.strSessionId + "_" + std::to_string(CreateRandomNumber()) + ".m3u8";
 	//m_strProxyName = "/1.m3u8";
 	qDebug() << param.strSessionId.c_str() << " ---> " << m_strProxyName.c_str();
 
 	param.strProxyAddress = "http://127.0.0.1:" + std::to_string(pServer->Port()) + m_strProxyName;
 	pServer->RegisterRouter(m_strProxyName, [this](HttpConnectionPtr conn)
 		{
-			QMap<QString, QString> mapQuery = ParseQuery(conn->GetQuery());
+			m_timepointLastActivity = std::chrono::steady_clock::now();
 
+			QMap<QString, QString> mapQuery = ParseQuery(conn->GetQuery());
 			if (mapQuery["action"] == "monitor")
 			{
 				return HandleMonitor(conn, mapQuery);
@@ -255,7 +257,7 @@ int HlsProxy::StopProxy()
 		return ret;
 	}
 
-	qDebug() << "request stop hls proxy " << m_strProxyName.c_str();
+	qDebug() << "stop hls proxy " << m_strProxyName.c_str();
 
 	if (m_pOriginPlaylist)
 	{
@@ -265,12 +267,6 @@ int HlsProxy::StopProxy()
 		m_strProxyName = "";
 	}
 
-	return 0;
-}
-
-int HlsProxy::PauseProxy(bool b)
-{
-	m_bPauseProxy = b;
 	return 0;
 }
 
@@ -287,15 +283,6 @@ int HlsProxy::GetContent(std::string& strContent)
 	bool   isEndSeg = false;
 	std::shared_ptr<HlsSegment> pSeg;
 	std::shared_ptr<HlsVariant> pVariant;
-
-	if (m_bPauseProxy)
-	{
-		if (!m_strLastResponCntent.empty())
-		{
-			strContent = m_strLastResponCntent;
-			return 0;
-		}
-	}
 
 	m_pOriginPlaylist->GetCurrentVariant(pVariant);
 	if (!pVariant)
@@ -348,11 +335,11 @@ int HlsProxy::GetContent(std::string& strContent)
 	m_strLastResponCntent = strContent;
 
 End:
-	QTimer::singleShot(20, [pVariant]()
+	QTimer::singleShot(20, [pVariant, this]()
 		{
 			if (pVariant)
 			{
-				pVariant->Prepare();
+				pVariant->Prepare(m_bMarkStop ? HlsSegment::PreloadType::Forward : HlsSegment::PreloadType::Download);
 			}
 		});
 
@@ -504,7 +491,7 @@ int HlsProxyManager::Start()
 		return ret;
 	}
 
-	static QSharedMemory sm_port("hls_proxy_port1");
+	static QSharedMemory sm_port("cbox_hls_proxy_port1");
 	if (!sm_port.attach())
 	{
 		if (sm_port.create(8))
@@ -534,10 +521,6 @@ int HlsProxyManager::Start()
 			{
 				HandleStopPlayProxy(conn, mapQuery);
 			}
-			else if (strAction == "pause")
-			{
-				HandlePausePlayProxy(conn, mapQuery);
-			}
 			else
 			{
 				SendInvalidParameter(conn);
@@ -546,11 +529,34 @@ int HlsProxyManager::Start()
 			return 0;
 		});
 
+
+	if (m_pClearTimer)
+	{
+		m_pClearTimer->stop();
+	}
+	else
+	{
+		m_pClearTimer = new QTimer();
+	}
+	m_pClearTimer->setInterval(10 * 1000);
+	m_pClearTimer->start();
+	QObject::connect(m_pClearTimer, &QTimer::timeout, 
+		[this]() 
+		{
+			ClearUnusedPlayProxy();
+		});
+
 	return 0;
 }
 
 int HlsProxyManager::Stop()
 {
+	if (m_pClearTimer)
+	{
+		m_pClearTimer->stop();
+		m_pClearTimer->deleteLater();
+		m_pClearTimer = nullptr;
+	}
 	return 0;
 }
 
@@ -574,7 +580,10 @@ int HlsProxyManager::HandleStartPlayProxy(HttpConnectionPtr conn, QMap<QString, 
 
 	if (m_mapProxy.find(strSessionId.toStdString()) != m_mapProxy.end())
 	{
-		SendDuplicate(conn);
+		QJsonObject obj;
+		obj["code"] = HlsProxyCode::Duplicate;
+		obj["message"] = "duplicate:" + strSessionId;
+		SendJson(conn, obj);
 		return 0;
 	}
 
@@ -627,8 +636,6 @@ int HlsProxyManager::HandleStopPlayProxy(HttpConnectionPtr conn, QMap<QString, Q
 	QString strSessionId = mapQuery["sessionId"];
 	qDebug() << "request stop session " << strSessionId;
 
-	ClearMonitorInfo(strSessionId.toStdString());
-
 	auto iter = m_mapProxy.find(strSessionId.toStdString());
 	if (iter == m_mapProxy.end())
 	{
@@ -637,9 +644,13 @@ int HlsProxyManager::HandleStopPlayProxy(HttpConnectionPtr conn, QMap<QString, Q
 		return 0;
 	}
 
-	iter->second->StopProxy();
-	delete iter->second;
-	m_mapProxy.erase(iter);
+	if (iter->second->IsMarkedStop())
+	{
+		SendDuplicate(conn);
+		return 0;
+	}
+
+	iter->second->MarkStop();
 
 	QJsonObject obj;
 	obj["code"] = HlsProxyCode::OK;
@@ -648,23 +659,27 @@ int HlsProxyManager::HandleStopPlayProxy(HttpConnectionPtr conn, QMap<QString, Q
 	return 0;
 }
 
-int HlsProxyManager::HandlePausePlayProxy(HttpConnectionPtr conn, QMap<QString, QString>& mapQuery)
+int HlsProxyManager::ClearUnusedPlayProxy()
 {
-	QString strSessionId = mapQuery["sessionId"];
-
-	auto iter = m_mapProxy.find(strSessionId.toStdString());
-	if (iter == m_mapProxy.end())
+	auto now = std::chrono::steady_clock::now();
+	for (auto iter = m_mapProxy.begin(); iter != m_mapProxy.end();)
 	{
-		qDebug() << "no session " << strSessionId << " " << __FUNCTION__;
-		SendInvalidParameter(conn);
-		return 0;
+		auto interval = now - iter->second->LastActivityTime();
+
+		if (iter->second->IsMarkedStop() && interval > std::chrono::seconds(15))
+		{
+			qDebug() << "delete play proxy for " << iter->first.c_str();
+
+			ClearMonitorInfo(iter->first);
+
+			iter->second->StopProxy();
+			delete iter->second;
+			iter = m_mapProxy.erase(iter);
+			continue;
+		}
+
+		++iter;
 	}
 
-	iter->second->PauseProxy(true);
-
-	QJsonObject obj;
-	obj["code"] = HlsProxyCode::OK;
-	obj["message"] = "OK";
-	SendJson(conn, obj);
 	return 0;
 }

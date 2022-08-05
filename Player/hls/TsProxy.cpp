@@ -160,7 +160,7 @@ int TsDownloadProxy::DownloadFinish(Dic& dic)
 		info.strTime = QDateTime::currentDateTime().toString("yyyy.MM.dd hh:mm:ss").toStdString();
 		info.strUrl = dic.get<std::string>("httpUrl");
 		info.httpResponCode = dic.get<int>("httpCode");
-		if (m_data.size() < 1024)
+		if (info.httpResponCode == 500)
 		{
 			info.strHttpResponData = m_data.toStdString();
 		}
