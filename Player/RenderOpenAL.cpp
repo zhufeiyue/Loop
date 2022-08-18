@@ -411,7 +411,7 @@ int OpenALDevice::UnqueueBuffer()
 }
 
 
-int AudioDataCacheConvert::Convert(std::vector<FrameHolderPtr>& frames, int& outSampleCount)
+int AudioDataConvertBatch::Convert(std::vector<FrameHolderPtr>& frames, int& outSampleCount)
 {
 	int32_t sampleCount = 0;
 	int32_t ret;
@@ -516,7 +516,7 @@ int RenderOpenAL::ConfigureRender(RenderInfo info)
 
 	//if (audioFormat != AV_SAMPLE_FMT_S16 || channel != 2)
 	{
-		m_pAudioConvert.reset(new AudioDataCacheConvert());
+		m_pAudioConvert.reset(new AudioDataConvertBatch());
 		res = m_pAudioConvert->Configure(
 			m_sampleRate, m_sampleChannelLayout, m_sampleFormat,
 			m_sampleRate, av_get_default_channel_layout(2), AV_SAMPLE_FMT_S16,
@@ -626,7 +626,7 @@ int RenderOpenAL::UpdataFrame(FrameHolderPtr inData)
 
 		m_pAudioData.reset(new Buf(m_sampleRate * 4));
 
-		m_pAudioConvert.reset(new AudioDataCacheConvert());
+		m_pAudioConvert.reset(new AudioDataConvertBatch());
 		ret = m_pAudioConvert->Configure(
 			m_sampleRate, m_sampleChannelLayout, m_sampleFormat,
 			m_sampleRate, av_get_default_channel_layout(2), AV_SAMPLE_FMT_S16,
@@ -828,3 +828,8 @@ end:
 	delete pWavFile;
 }
 #endif
+
+IAudioRender* CreateOpenALRender()
+{
+	return new RenderOpenAL();
+}

@@ -2,7 +2,6 @@
 #include "DecodeFile.h"
 #include "RenderGraphicsView.h"
 #include "RenderOpenGLWidget.h"
-#include "RenderOpenAL.h"
 #include "RenderQuick.h"
 
 #include "hls/DecodeHls.h"
@@ -528,9 +527,13 @@ int Player::DestroyVideoRender()
 	return CodeOK;
 }
 
+IAudioRender* CreateOpenALRender();
+IAudioRender* CreateMiniAudioRender();
+
 int Player::InitAudioRender(void*)
 {
-	m_pAudioRender.reset(new RenderOpenAL());
+	//m_pAudioRender.reset(CreateOpenALRender());
+	m_pAudioRender.reset(CreateMiniAudioRender());
 	return CodeOK;
 }
 

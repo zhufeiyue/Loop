@@ -9,13 +9,11 @@
 #include <common/bufpool.h>
 
 #include "IRender.h"
-#include "WavDemuxer.h"
 #include "FFmpegDemuxer.h"
 
 #if _WIN32
-
+#include "WavDemuxer.h"
 void testPlayWav();
-
 #endif
 
 class OpenALDevice
@@ -71,10 +69,12 @@ private:
 	ALenum  m_format;
 };
 
-class AudioDataCacheConvert : public FFmpegAudioConvert
+class AudioDataConvertBatch : public FFmpegAudioConvert
 {
 public:
 	int Convert(std::vector<FrameHolderPtr>& frames, int& sampleCountOut);
+private:
+	int Convert(const uint8_t**, int) { return 0; }
 };
 
 class RenderOpenAL : public IAudioRender
@@ -99,7 +99,7 @@ protected:
 
 private:
 	std::unique_ptr<OpenALDevice>          m_pPlayDevice;
-	std::unique_ptr<AudioDataCacheConvert> m_pAudioConvert;
+	std::unique_ptr<AudioDataConvertBatch> m_pAudioConvert;
 
 	AVSampleFormat m_sampleFormat = AV_SAMPLE_FMT_NONE;
 	int32_t        m_sampleSpeed = 1; //Speed_1X

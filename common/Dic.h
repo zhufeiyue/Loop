@@ -64,16 +64,16 @@ public:
 	}
 
 	template<typename T>
-	T get(const std::string key) const
+	T get(const std::string key, T defaultValue = T()) const
 	{
 		auto iter = m_data.find(key);
 		if (iter != m_data.end()) 
 		{
-			return iter->second.to<T>();
+			return iter->second.to<T>(defaultValue);
 		}
 		else
 		{
-			return T();
+			return defaultValue;
 		}
 	}
 
