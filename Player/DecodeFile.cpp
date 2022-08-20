@@ -12,6 +12,12 @@ DecodeFile::DecodeFile()
 	{
 		m_threadWork[i] = std::thread([this]()
 		{
+#ifdef _WIN32
+				if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL))
+				{
+					LOG() << "SetThreadPriority " << GetLastError();
+				}
+#endif
 			m_pEventLoop->Run();
 		});
 	}
@@ -61,6 +67,13 @@ int DecodeFile::InitDecoder(std::string strMediaPath, IDecoder::Callback initCal
 				goto End;
 			}
 
+			auto strProtocol = avio_find_protocol_name(strMediaPath.c_str());
+			bool bIsFile = true;
+			if (strProtocol && strcmp(strProtocol, "file") == 0)
+			{
+				bIsFile = true;
+			}
+
 			FileProvider* pFileProvider = nullptr;
 			//pFileProvider = new FileProvider(strMediaPath);
 
@@ -83,7 +96,7 @@ int DecodeFile::InitDecoder(std::string strMediaPath, IDecoder::Callback initCal
 
 			if (m_pDecoder->ContainVideo())
 			{
-				m_iMaxCacheVideoFrameCount = 10;
+				m_iMaxCacheVideoFrameCount = bIsFile ? 8 : 16;
 				auto videoTimebase = m_pDecoder->GetVideoTimebase(0);
 
 				mediaInfo.insert("hasVideo", true);
@@ -104,7 +117,7 @@ int DecodeFile::InitDecoder(std::string strMediaPath, IDecoder::Callback initCal
 			if (m_pDecoder->ContainAudio())
 			{
 				m_iAuioRate = m_pDecoder->GetSampleRate();
-				m_iMaxCacheAudioFrameCount = m_iAuioRate;
+				m_iMaxCacheAudioFrameCount = bIsFile ? m_iAuioRate : m_iAuioRate * 5;
 				auto audioTimebase = m_pDecoder->GetAudioTimebase(0);
 
 				mediaInfo.insert("hasAudio", true);

@@ -200,7 +200,6 @@ int MiniAudioPlayWav::AudioDataCb(void* pOutput, const void*, ma_uint32 frameWan
 }
 #endif
 
-
 int MiniAudioPlay::AudioDataCb(void* pOut, const void*, ma_uint32 frameWant)
 {
 	if (m_funcFillData)
@@ -209,7 +208,6 @@ int MiniAudioPlay::AudioDataCb(void* pOut, const void*, ma_uint32 frameWant)
 	}
 	return 0;
 }
-
 
 int AudioDataConvert::Convert(FrameHolderPtr& frame, int& sampleGot)
 {
@@ -234,6 +232,21 @@ int AudioDataConvert::Convert(FrameHolderPtr& frame, int& sampleGot)
 }
 
 
+
+static AVSampleFormat GetAVSampleFormatByMiniAudioFormat(ma_format f)
+{
+	switch (f)
+	{
+	case ma_format_s16:
+		return AV_SAMPLE_FMT_S16;
+	case ma_format_f32:
+		return AV_SAMPLE_FMT_FLT;
+	default:
+		return AV_SAMPLE_FMT_S16;
+		break;
+	}
+}
+
 int RenderMiniAudio::ConfigureRender(RenderInfo info)
 {
 	if (!info.get<int>("hasAudio", 0))
@@ -241,24 +254,24 @@ int RenderMiniAudio::ConfigureRender(RenderInfo info)
 		return CodeNo;
 	}
 
+	m_miniAudioChannel = 2;
+	//m_miniAudioFormat = ma_format_s16;
+	//m_miniAudioBytePerSample = 4;
+	m_miniAudioFormat = ma_format_f32;
+	m_miniAudioBytePerSample = 8;
+
 	m_sampleFormat = (AVSampleFormat)info.get<int32_t>("audioFormat", -1);
+	m_sampleFormat = AV_SAMPLE_FMT_NONE; // 假装不知道
 	m_sampleRate = info.get<int32_t>("audioRate");
 	m_sampleChannel = info.get<int32_t>("audioChannel");
 	m_sampleChannelLayout = info.get<int64_t>("audioChannelLayout");
 
-	int ret = ConfigureAudioConvert();
-	if (ret != CodeOK)
-	{
-		return CodeNo;
-	}
-
 	m_pMiniAudio.reset(new MiniAudioPlay());
-	ret = m_pMiniAudio->Configure(m_sampleRate, 2, ma_format_s16);
+	int ret = m_pMiniAudio->Configure(m_sampleRate, m_miniAudioChannel, m_miniAudioFormat);
 	if (ret != CodeOK)
 	{
 		return CodeNo;
 	}
-
 	m_pMiniAudio->SetFuncFillData([this](void* pOut, uint32_t frameWant) 
 		{
 			RenderData(pOut, frameWant);
@@ -272,12 +285,13 @@ int RenderMiniAudio::ConfigureRender(RenderInfo info)
 int RenderMiniAudio::ConfigureAudioConvert()
 {
 	m_pAudioConvert.reset();
-	if (m_sampleChannel != 2 || m_sampleFormat != AV_SAMPLE_FMT_S16)
+	if (m_sampleChannel != m_miniAudioChannel || 
+		m_sampleFormat != GetAVSampleFormatByMiniAudioFormat(m_miniAudioFormat))
 	{
 		m_pAudioConvert.reset(new AudioDataConvert());
 		int ret = m_pAudioConvert->Configure(
 			m_sampleRate, m_sampleChannelLayout, m_sampleFormat,
-			m_sampleRate, av_get_default_channel_layout(2), AV_SAMPLE_FMT_S16,
+			m_sampleRate, av_get_default_channel_layout((int)m_miniAudioChannel), GetAVSampleFormatByMiniAudioFormat(m_miniAudioFormat),
 			m_sampleRate / 2);
 		if (ret != CodeOK)
 		{
@@ -321,6 +335,7 @@ again:
 			ret = ConfigureAudioConvert();
 			if (ret != CodeOK)
 			{
+				m_pCurrentFrame.reset();
 				m_sampleFormat = AV_SAMPLE_FMT_NONE;
 				return -1;
 			}
@@ -344,10 +359,11 @@ again:
 	}
 
 	int sampleUseableInCurrentFrame = m_iCurrentFrameSampleCount - m_iCurrentFrameOffset;
-	auto bytePerSample = 4;
 	auto n = (std::min)(frameWant - frameGot, (uint32_t)sampleUseableInCurrentFrame);
 
-	memcpy((uint8_t*)pOut + frameGot * bytePerSample, m_pCurrentFrameDataPtr + m_iCurrentFrameOffset * bytePerSample, n * bytePerSample);
+	memcpy((uint8_t*)pOut + frameGot * m_miniAudioBytePerSample, 
+		m_pCurrentFrameDataPtr + m_iCurrentFrameOffset * m_miniAudioBytePerSample,
+		n * m_miniAudioBytePerSample);
 	frameGot += n;
 	m_iCurrentFrameOffset += n;
 	if (m_iCurrentFrameOffset >= m_iCurrentFrameSampleCount)
@@ -469,7 +485,160 @@ int RenderMiniAudio::GetUseableDuration(int32_t& d)
 	return 0;
 }
 
+
+int RenderMiniAudio1::ConfigureRender(RenderInfo info)
+{
+	auto ret = RenderMiniAudio::ConfigureRender(info);
+	if (m_pMiniAudio)
+	{
+		m_pMiniAudio->SetFuncFillData([this](void* pOut, uint32_t frameWant)
+			{
+				RenderData(pOut, frameWant);
+			});
+	}
+
+	return ret;
+}
+
+int RenderMiniAudio1::UpdataFrame(FrameHolderPtr frameHolder)
+{
+	int ret = 0;
+	auto pFrame = frameHolder->FrameData();
+	if (pFrame->format != m_sampleFormat ||
+		pFrame->channel_layout != m_sampleChannelLayout ||
+		pFrame->sample_rate != m_sampleRate)
+	{
+		m_sampleFormat = (AVSampleFormat)pFrame->format;
+		m_sampleChannelLayout = pFrame->channel_layout;
+		m_sampleChannel = pFrame->channels;
+		m_sampleRate = pFrame->sample_rate;
+		m_sampleSpeed = frameHolder->Speed();
+
+		ret = ConfigureAudioConvert();
+		if (ret != CodeOK)
+		{
+			return CodeNo;
+		}
+	}
+
+	int32_t sampleCount = 0;
+	uint8_t* pAudioData = nullptr;
+	uint32_t iAudioDataSize = 0;
+	if (m_pAudioConvert)
+	{
+		if (CodeOK != m_pAudioConvert->Convert(frameHolder, sampleCount))
+			return -1;
+
+		pAudioData = m_pAudioConvert->Frame()->data[0];
+	}
+	else
+	{
+		pAudioData = pFrame->data[0];
+	}
+	iAudioDataSize = sampleCount * m_miniAudioBytePerSample;
+
+	auto pBuf = m_audioDataBufPool.AllocAutoFreeBuf(iAudioDataSize);
+	if (pBuf)
+	{
+		memcpy(pBuf->Data(), pAudioData, iAudioDataSize);
+		pBuf->PlayloadSize() = iAudioDataSize;
+	}
+	else
+	{
+		return CodeNo;
+	}
+
+	auto pRenderData = m_dataWaitFill.Get<>(true);
+	if (!pRenderData)
+	{
+		return CodeNo;
+	}
+	pRenderData->sampleCount = sampleCount;
+	pRenderData->sampleRenderTime = frameHolder->UniformPTS();
+	pRenderData->buf = std::move(pBuf);
+
+	if (!m_dataWaitRender.Put(pRenderData))
+	{
+		delete pRenderData;
+		return CodeNo;
+	}
+	m_audioDataSampleCount += sampleCount;
+	if (m_audioDataSampleCount < m_sampleRate / 2)
+	{
+		return CodeAgain;
+	}
+
+	return CodeOK;
+}
+
+int RenderMiniAudio1::RenderData(void* pOut, uint32_t frameWant)
+{
+	uint32_t frameGot = 0;
+
+again:
+	if (!m_pCurrentRenderData)
+	{
+		m_pCurrentRenderData.reset(m_dataWaitRender.Get<>(false));
+		if (!m_pCurrentRenderData)
+		{
+			return -1;
+		}
+
+		m_iCurrentFrameOffset = 0;
+		m_iCurrentFrameSampleCount = m_pCurrentRenderData->sampleCount;
+		m_iCurrentFrameRenderTime = m_pCurrentRenderData->sampleRenderTime;
+		m_pCurrentFrameDataPtr = m_pCurrentRenderData->buf->DataConst();
+
+		m_audioDataSampleCount -= m_iCurrentFrameSampleCount;
+	}
+
+	int sampleUseableInCurrentFrame = m_iCurrentFrameSampleCount - m_iCurrentFrameOffset;
+	auto n = (std::min)(frameWant - frameGot, (uint32_t)sampleUseableInCurrentFrame);
+
+	memcpy((uint8_t*)pOut + frameGot * m_miniAudioBytePerSample,
+		m_pCurrentFrameDataPtr + m_iCurrentFrameOffset * m_miniAudioBytePerSample,
+		n * m_miniAudioBytePerSample);
+	frameGot += n;
+	m_iCurrentFrameOffset += n;
+	if (m_iCurrentFrameOffset >= m_iCurrentFrameSampleCount)
+	{
+		m_pCurrentRenderData->buf.reset();
+		if (m_dataWaitFill.Put(m_pCurrentRenderData.get()))
+		{
+			m_pCurrentRenderData.release();
+		}
+		else
+		{
+			m_pCurrentRenderData.reset();
+		}
+	}
+
+	if (frameGot < frameWant)
+	{
+		goto again;
+	}
+
+	return 0;
+}
+
+int RenderMiniAudio1::Reset()
+{	
+	AudioRenderData* p = nullptr;
+	while (p = m_dataWaitRender.Get<>(false))
+	{
+		m_audioDataSampleCount -= p->sampleCount;
+		p->buf.reset();
+		if (!m_dataWaitFill.Put(p))
+		{
+			delete p;
+		}
+	}
+
+	return 0;
+}
+
 IAudioRender* CreateMiniAudioRender()
 {
+	return new RenderMiniAudio1();
 	return new RenderMiniAudio();
 }

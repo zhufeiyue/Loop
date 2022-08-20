@@ -11,6 +11,7 @@
 #include <thread>
 
 #include <common/log.h>
+#include <common/bufpool.h>
 #include "IRender.h"
 #include "FFmpegDemuxer.h"
 
@@ -98,6 +99,9 @@ protected:
 	int RenderData(void*, uint32_t);
 
 protected:
+	ma_format                         m_miniAudioFormat;
+	uint32_t                          m_miniAudioChannel;
+	uint32_t                          m_miniAudioBytePerSample;
 	std::unique_ptr<MiniAudioPlay>    m_pMiniAudio;
 	std::unique_ptr<AudioDataConvert> m_pAudioConvert;
 
@@ -107,13 +111,39 @@ protected:
 	int32_t        m_sampleChannel;
 	int64_t        m_sampleChannelLayout;
 
+private:
+	std::mutex                 m_audioDataLock;
 	std::queue<FrameHolderPtr> m_audioDatas;
-	std::mutex     m_audioDataLock;
-	int32_t        m_audioDataSampleCount = 0;
+protected:
+	std::atomic<int32_t>       m_audioDataSampleCount = 0;
 	int32_t        m_iCurrentFrameSampleCount = 0;
 	int32_t        m_iCurrentFrameOffset = 0;
 	int64_t        m_iCurrentFrameRenderTime = 0;
 	FrameHolderPtr m_pCurrentFrame;
 	const uint8_t* m_pCurrentFrameDataPtr = nullptr;
 	bool           m_bPause = false;
+};
+
+class RenderMiniAudio1 : public RenderMiniAudio
+{
+public:
+	struct AudioRenderData
+	{
+		int32_t sampleCount;
+		int64_t sampleRenderTime;
+		BufPtr buf;
+	};
+
+	int ConfigureRender(RenderInfo) override;
+	int UpdataFrame(FrameHolderPtr data) override;
+	int Reset() override;
+
+protected:
+	int RenderData(void*, uint32_t);
+
+protected:
+	BufPool<1024 * 4, 1024 * 8> m_audioDataBufPool;
+	ObjectPool<AudioRenderData> m_dataWaitRender;
+	ObjectPool<AudioRenderData> m_dataWaitFill;
+	std::unique_ptr<AudioRenderData> m_pCurrentRenderData;
 };

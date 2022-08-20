@@ -224,9 +224,9 @@ int testBasePlayer(int argc, char* argv[])
 		pFile = "D:/迅雷下载/[久久美剧www.jjmjtv.com]星际之门.宇宙.Stargate.Universe.S01E18.Chi_Eng.BD-HDTV.AC3.1024X576.x264-YYeTs.mkv";
 		pFile = "D:/迅雷下载/【高清MP4电影www.boxmp4.com】2005.银饰.mkv";
 		pFile = "D:/迅雷下载/Halo.S01E01.1080p.WEB.h264-KOGi[eztv.re].mkv";
+		pFile = "https://newcntv.qcloudcdn.com/asp/hls/main/0303000a/3/default/4f7655094036437c8ec19bf50ba3a8e0/main.m3u8?maxbr=2048";
 		pFile = "http://112.74.200.9:88/tv000000/m3u8.php?/migu/625204865";
 		pFile = "D:/迅雷下载/阳光电影www.ygdy8.com.007：无暇赴死.2021.BD.1080P.国英双语双字.mkv";
-		pFile = "https://newcntv.qcloudcdn.com/asp/hls/main/0303000a/3/default/4f7655094036437c8ec19bf50ba3a8e0/main.m3u8?maxbr=2048";
 
 	}
 
@@ -285,9 +285,9 @@ int testQmlPlayer(int argc, char* argv[])
 		pFile = "D:/迅雷下载/1/阳光电影www.ygdy8.com.007：无暇赴死.2021.BD.1080P.国英双语双字.mkv";
 		//pFile = "http://112.51.31.67:22080/hls/live/bosma-C1-2k/index.m3u8";
 		pFile = "D:/迅雷下载/阳光电影www.ygdy8.com.唐顿庄园2.2022.BD.1080P.中英双字.mkv";
-		pFile = "http://112.74.200.9:88/tv000000/m3u8.php?/migu/627198191";
 		pFile = "http://112.74.200.9:88/tv000000/m3u8.php?/migu/625204865";
 		pFile = "D:/迅雷下载/阳光电影www.ygdy8.com.007：无暇赴死.2021.BD.1080P.国英双语双字.mkv";
+		pFile = "http://112.74.200.9:88/tv000000/m3u8.php?/migu/627198191";
 
 	}
 
