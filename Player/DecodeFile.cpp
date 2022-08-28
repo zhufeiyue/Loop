@@ -69,9 +69,9 @@ int DecodeFile::InitDecoder(std::string strMediaPath, IDecoder::Callback initCal
 
 			auto strProtocol = avio_find_protocol_name(strMediaPath.c_str());
 			bool bIsFile = true;
-			if (strProtocol && strcmp(strProtocol, "file") == 0)
+			if (strProtocol && strcmp(strProtocol, "file") != 0)
 			{
-				bIsFile = true;
+				bIsFile = false;
 			}
 
 			FileProvider* pFileProvider = nullptr;
@@ -117,7 +117,7 @@ int DecodeFile::InitDecoder(std::string strMediaPath, IDecoder::Callback initCal
 			if (m_pDecoder->ContainAudio())
 			{
 				m_iAuioRate = m_pDecoder->GetSampleRate();
-				m_iMaxCacheAudioFrameCount = bIsFile ? m_iAuioRate : m_iAuioRate * 5;
+				m_iMaxCacheAudioFrameCount = bIsFile ? m_iAuioRate : m_iAuioRate * 3;
 				auto audioTimebase = m_pDecoder->GetAudioTimebase(0);
 
 				mediaInfo.insert("hasAudio", true);

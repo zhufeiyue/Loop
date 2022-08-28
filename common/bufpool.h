@@ -103,7 +103,7 @@ public:
 
 private:
 	boost::lockfree::queue<T*,
-		boost::lockfree::capacity<256>,
+		boost::lockfree::capacity<512>,
 		boost::lockfree::fixed_sized<true>> m_pool;
 };
 

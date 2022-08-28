@@ -292,10 +292,6 @@ int FFmpegDemuxer::DemuxVideo(AVPacket& got)
 	{
 		return -1;
 	}
-	if (got.data)
-	{
-		av_packet_unref(&got);
-	}
 
 	int n = 0;
 	AVPacket packet;
@@ -368,10 +364,6 @@ int FFmpegDemuxer::DemuxAudio(AVPacket& got)
 	if (!m_pFormatContext || m_iAudioIndex < 0 || !m_bEnableAudio)
 	{
 		return -1;
-	}
-	if (got.data)
-	{
-		av_packet_unref(&got);
 	}
 
 	int n = 0;
@@ -763,10 +755,16 @@ FFmpegDecode::FFmpegDecode(std::string s, CustomIOProvider* pProvider):
 {
 	m_pAFrame = av_frame_alloc();
 	m_pVFrame = av_frame_alloc();
+
+	av_init_packet(&m_packetAudio);
+	av_init_packet(&m_packetVideo);
 }
 
 FFmpegDecode::~FFmpegDecode()
 {
+	av_packet_unref(&m_packetAudio);
+	av_packet_unref(&m_packetVideo);
+
 	av_frame_free(&m_pAFrame);
 	av_frame_free(&m_pVFrame);
 
@@ -787,6 +785,9 @@ int FFmpegDecode::Seek(int64_t target_pos, int64_t currPos)
 	{
 		return result;
 	}
+
+	av_packet_unref(&m_packetAudio);
+	av_packet_unref(&m_packetVideo);
 
 	if (m_pVCodecContext)
 		avcodec_flush_buffers(m_pVCodecContext);
@@ -837,27 +838,24 @@ int FFmpegDecode::CreateDecoder()
 
 int FFmpegDecode::DecodeVideo(AVPacket& packet)
 {
-	int n = -1;
-
 	if (!m_pVCodecContext)
 	{
 		return -1;
 	}
 
-	if (packet.data)
+
+	int n = avcodec_send_packet(m_pVCodecContext, &packet);
+	m_iVideoPacketPTS = packet.pts;
+	av_packet_unref(&packet);
+	if (n < 0)
 	{
-		n = avcodec_send_packet(m_pVCodecContext, &packet);
-		av_packet_unref(&packet);
-		if (n < 0)
+		PrintFFmpegError(n, __FUNCTION__ " avcodec_send_packet");
+		// todo is this ok?
+		if (n == AVERROR_INVALIDDATA)
 		{
-			PrintFFmpegError(n, __FUNCTION__ " avcodec_send_packet");
-			// todo is this ok?
-			if (n == AVERROR_INVALIDDATA)
-			{
-				n = AVERROR(EAGAIN);
-			}
-			return n;
+			n = AVERROR(EAGAIN);
 		}
+		return n;
 	}
 
 	n = avcodec_receive_frame(m_pVCodecContext, m_pVFrame);
@@ -871,35 +869,42 @@ int FFmpegDecode::DecodeVideo(AVPacket& packet)
 
 int FFmpegDecode::DecodeAudio(AVPacket& packet)
 {
-	int n = -1;
-
 	if (!m_pACodecContext)
 	{
 		return -1;
 	}
 
-	if (packet.data)
+
+	int n = avcodec_send_packet(m_pACodecContext, &packet);
+	if (n == 0)
 	{
-		n = avcodec_send_packet(m_pACodecContext, &packet);
+		m_iAudioPacketPTS = packet.pts;
 		av_packet_unref(&packet);
-		if (n < 0)
+	}
+	else if (n < 0)
+	{
+		if (n == AVERROR(EAGAIN))
 		{
-			PrintFFmpegError(n);
-
-			// todo is this ok?
-			if (n == AVERROR_INVALIDDATA)
-			{
-				n = AVERROR(EAGAIN);
-			}
-
-			return n;
+			goto recv_frame;
 		}
+		av_packet_unref(&packet);
+
+		PrintFFmpegError(n, "avcodec_send_packet");
+
+		// todo is this ok?
+		if (n == AVERROR_INVALIDDATA)
+		{
+			n = AVERROR(EAGAIN);
+		}
+
+		return n;
 	}
 
+recv_frame:
 	n = avcodec_receive_frame(m_pACodecContext, m_pAFrame);
 	if (n < 0)
 	{
-		PrintFFmpegError(n);
+		PrintFFmpegError(n, "avcodec_receive_frame");
 	}
 
 	return n;
@@ -908,9 +913,6 @@ int FFmpegDecode::DecodeAudio(AVPacket& packet)
 int FFmpegDecode::DecodeVideoFrame()
 {
 	AVPacket packet;
-	av_init_packet(&packet);
-	packet.data = NULL;
-	packet.size = 0;
 	int n = 0; 
 
 read:
@@ -930,8 +932,12 @@ decode:
 	{
 		//if(m_pVFrame->pts == AV_NOPTS_VALUE)
 		//	m_pVFrame->pts = av_frame_get_best_effort_timestamp(m_pVFrame);
-
 		//LOG() << m_pVFrame->pts;
+
+		if (m_pVFrame->pts == AV_NOPTS_VALUE)
+		{
+			m_pVFrame->pts = m_iVideoPacketPTS;
+		}
 	}
 	else if (n == AVERROR(EAGAIN))
 	{
@@ -939,7 +945,6 @@ decode:
 	}
 	else
 	{
-		// handle error
 		m_iDecodeVideoError = n;
 	}
 
@@ -949,13 +954,18 @@ decode:
 int FFmpegDecode::DecodeAudioFrame()
 {
 	AVPacket packet;
-	av_init_packet(&packet);
-	packet.data = NULL;
-	packet.size = 0;
 	int n = 0;
 
 read:
-	n = DemuxAudio(packet);
+	if (m_packetAudio.buf)
+	{
+		av_packet_move_ref(&packet, &m_packetAudio);
+	}
+	else
+	{
+		n = DemuxAudio(packet);
+	}
+
 	if (n == 0)
 	{
 	}
@@ -969,7 +979,15 @@ decode:
 	n = DecodeAudio(packet);
 	if (n == 0)
 	{
-		// todo audio data
+		if (m_pAFrame->pts == AV_NOPTS_VALUE)
+		{
+			m_pAFrame->pts = m_iAudioPacketPTS;
+		}
+
+		if (packet.buf)
+		{
+			av_packet_move_ref(&m_packetAudio, &packet);
+		}
 	}
 	else if (n == AVERROR(EAGAIN))
 	{
@@ -977,7 +995,6 @@ decode:
 	}
 	else
 	{
-		// handle error
 		m_iDecodeAudioError = n;
 	}
 

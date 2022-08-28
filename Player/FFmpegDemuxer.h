@@ -132,6 +132,11 @@ protected:
 	AVCodec* m_pACodec = nullptr;
 	AVFrame* m_pVFrame = nullptr;
 	AVFrame* m_pAFrame = nullptr;
+	AVPacket m_packetAudio;
+	AVPacket m_packetVideo;
+
+	int64_t  m_iAudioPacketPTS = 0;
+	int64_t  m_iVideoPacketPTS = 0;
 
 	int m_iDecodeAudioError = 0;
 	int m_iDecodeVideoError = 0;
